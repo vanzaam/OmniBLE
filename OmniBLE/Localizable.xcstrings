@@ -22263,6 +22263,9 @@
         }
       }
     },
+    "Quick Settings" : {
+      "comment" : "Section header for quick configuration section"
+    },
     "Rate" : {
       "comment" : "Label text for basal rate summary",
       "localizations" : {

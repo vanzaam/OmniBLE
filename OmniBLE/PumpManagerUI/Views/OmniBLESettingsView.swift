@@ -305,6 +305,50 @@ struct OmniBLESettingsView: View  {
                 }
             }
             
+            // FreeAPS X: Always-visible quick access to configuration
+            Section(header: SectionHeader(label: LocalizedString("Quick Settings", comment: "Section header for quick configuration section"))) {
+                NavigationLink(destination:
+                                NotificationSettingsView(
+                                    dateFormatter: self.viewModel.dateFormatter,
+                                    expirationReminderDefault: self.$viewModel.expirationReminderDefault,
+                                    scheduledReminderDate: self.viewModel.expirationReminderDate,
+                                    allowedScheduledReminderDates: self.viewModel.allowedScheduledReminderDates,
+                                    lowReservoirReminderValue: self.viewModel.lowReservoirAlertValue,
+                                    onSaveScheduledExpirationReminder: self.viewModel.saveScheduledExpirationReminder,
+                                    onSaveLowReservoirReminder: self.viewModel.saveLowReservoirReminder))
+                {
+                    FrameworkLocalText("Notification Settings", comment: "Text for pod details disclosure row").foregroundColor(Color.primary)
+                }
+                NavigationLink(destination: BeepPreferenceSelectionView(initialValue: viewModel.beepPreference, onSave: viewModel.setConfirmationBeeps)) {
+                    HStack {
+                        FrameworkLocalText("Confidence Reminders", comment: "Text for confidence reminders navigation link")
+                            .foregroundColor(Color.primary)
+                        Spacer()
+                        Text(viewModel.beepPreference.title)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                NavigationLink(destination: SilencePodSelectionView(initialValue: viewModel.silencePodPreference, onSave: viewModel.setSilencePod)) {
+                    HStack {
+                        FrameworkLocalText("Silence Pod", comment: "Text for silence pod navigation link")
+                            .foregroundColor(Color.primary)
+                        Spacer()
+                        Text(viewModel.silencePodPreference.title)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                NavigationLink(destination: InsulinTypeSetting(initialValue: viewModel.insulinType, supportedInsulinTypes: supportedInsulinTypes, allowUnsetInsulinType: false, didChange: viewModel.didChangeInsulinType)) {
+                    HStack {
+                        FrameworkLocalText("Insulin Type", comment: "Text for insulin type navigation link").foregroundColor(Color.primary)
+                        if let currentTitle = viewModel.insulinType?.brandName {
+                            Spacer()
+                            Text(currentTitle)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+
             Section(header: SectionHeader(label: LocalizedString("Activity", comment: "Section header for activity section"))) {
                 suspendResumeRow()
                     .disabled(!self.viewModel.podOk)
@@ -418,6 +462,7 @@ struct OmniBLESettingsView: View  {
                 {
                     FrameworkLocalText("Notification Settings", comment: "Text for pod details disclosure row").foregroundColor(Color.primary)
                 }
+                .disabled(false)
                 NavigationLink(destination: BeepPreferenceSelectionView(initialValue: viewModel.beepPreference, onSave: viewModel.setConfirmationBeeps)) {
                     HStack {
                         FrameworkLocalText("Confidence Reminders", comment: "Text for confidence reminders navigation link")
@@ -427,6 +472,7 @@ struct OmniBLESettingsView: View  {
                             .foregroundColor(.secondary)
                     }
                 }
+                .disabled(false)
                 NavigationLink(destination: SilencePodSelectionView(initialValue: viewModel.silencePodPreference, onSave: viewModel.setSilencePod)) {
                     HStack {
                         FrameworkLocalText("Silence Pod", comment: "Text for silence pod navigation link")
@@ -436,6 +482,7 @@ struct OmniBLESettingsView: View  {
                             .foregroundColor(.secondary)
                     }
                 }
+                .disabled(false)
                 NavigationLink(destination: InsulinTypeSetting(initialValue: viewModel.insulinType, supportedInsulinTypes: supportedInsulinTypes, allowUnsetInsulinType: false, didChange: viewModel.didChangeInsulinType)) {
                     HStack {
                         FrameworkLocalText("Insulin Type", comment: "Text for insulin type navigation link").foregroundColor(Color.primary)
@@ -446,6 +493,7 @@ struct OmniBLESettingsView: View  {
                         }
                     }
                 }
+                .disabled(false)
             }
 
             Section() {

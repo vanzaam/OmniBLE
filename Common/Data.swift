@@ -88,3 +88,8 @@ extension Data {
         return map { String(format: "%02hhx", $0) }.joined()
     }
 }
+
+// Compatibility shim for legacy code using Data.bytes
+public extension Data {
+    var bytes: [UInt8] { [UInt8](self) }
+}

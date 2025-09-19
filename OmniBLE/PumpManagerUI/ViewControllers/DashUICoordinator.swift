@@ -107,10 +107,6 @@ class DashUICoordinator: UINavigationController, PumpManagerOnboarding, Completi
             }
             view.continueButtonTapped = { [weak self] in
                 guard let self = self else { return }
-                if !self.pumpManager.isOnboarded {
-                    self.pumpManager.completeOnboard()
-                    self.pumpManagerOnboardingDelegate?.pumpManagerOnboarding(didOnboardPumpManager: self.pumpManager)
-                }
                 self.stepFinished()
             }
             view.cancelButtonTapped = { [weak self] in
@@ -255,6 +251,10 @@ class DashUICoordinator: UINavigationController, PumpManagerOnboarding, Completi
                     self?.pumpManager.updateExpirationReminder(intervalBeforeExpiration, completion: completion)
                 },
                 didFinish: { [weak self] in
+                    if let self = self, !self.pumpManager.isOnboarded {
+                        self.pumpManager.completeOnboard()
+                        self.pumpManagerOnboardingDelegate?.pumpManagerOnboarding(didOnboardPumpManager: self.pumpManager)
+                    }
                     self?.stepFinished()
                 },
                 didRequestDeactivation: { [weak self] in
