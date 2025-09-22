@@ -49,12 +49,13 @@ class PeripheralManager: NSObject {
 
 
     /// The dispatch queue used to serialize operations on the peripheral
-    let queue = DispatchQueue(label: "com.loopkit.PeripheralManager.queue", qos: .unspecified)
+    let queue = DispatchQueue(label: "com.loopkit.PeripheralManager.queue", qos: .userInitiated)
 
     private let sessionQueue: OperationQueue = {
         let queue = OperationQueue()
         queue.name = "com.OmniBLE.OmnipodDevice.sessionQueue"
         queue.maxConcurrentOperationCount = 1
+        queue.qualityOfService = .userInitiated
 
         return queue
     }()
