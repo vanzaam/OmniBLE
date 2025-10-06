@@ -43,6 +43,8 @@ class OmniBLESettingsViewModel: ObservableObject {
     @Published var silencePodPreference: SilencePodPreference
 
     @Published var podConnected: Bool
+    
+    @Published var initialReservoirLevel: Decimal? = nil // 🚀 NEW: Начальный остаток резервуара для OmniPod Dash
 
     var activatedAtString: String {
         if let activatedAt = activatedAt {
@@ -218,7 +220,7 @@ class OmniBLESettingsViewModel: ObservableObject {
     
     var navigateTo: ((DashUIScreen) -> Void)?
     
-    private let pumpManager: OmniBLEPumpManager
+    let pumpManager: OmniBLEPumpManager
     
     init(pumpManager: OmniBLEPumpManager) {
         self.pumpManager = pumpManager
@@ -243,8 +245,23 @@ class OmniBLESettingsViewModel: ObservableObject {
         pumpManager.addPodStateObserver(self, queue: DispatchQueue.main)
         pumpManager.addStatusObserver(self, queue: DispatchQueue.main)
         
+        // 🚀 LOAD: Load initial reservoir level from UserDefaults
+        loadInitialReservoirLevel()
+        
         // Trigger refresh
         pumpManager.getPodStatus() { _ in }
+    }
+    
+    // 🚀 LOAD: Load initial reservoir level from UserDefaults
+    private func loadInitialReservoirLevel() {
+        let userDefaults = UserDefaults(suiteName: "group.ru.zamot.freeeapsx")
+        if let data = userDefaults?.data(forKey: "initialReservoirLevel"),
+           let value = try? JSONDecoder().decode(Decimal.self, from: data) {
+            initialReservoirLevel = value
+            print("🎯 OmniBLESettingsViewModel: Loaded initial reservoir level: \(value)")
+        } else {
+            print("🎯 OmniBLESettingsViewModel: No initial reservoir level found")
+        }
     }
     
     func changeTimeZoneTapped() {
@@ -321,6 +338,39 @@ class OmniBLESettingsViewModel: ObservableObject {
                 }
                 completion(error)
             }
+        }
+    }
+    
+    // 🚀 SAVE: Save initial reservoir level to UserDefaults
+    func saveInitialReservoirLevel(_ level: Decimal?, _ completion: @escaping (Error?) -> Void) {
+        // Update local state
+        self.initialReservoirLevel = level
+        
+        // Save to UserDefaults
+        let userDefaults = UserDefaults(suiteName: "group.ru.zamot.freeeapsx")
+        if let level = level {
+            if let data = try? JSONEncoder().encode(level) {
+                userDefaults?.set(data, forKey: "initialReservoirLevel")
+                print("🎯 OmniBLESettingsViewModel: Saved to UserDefaults: \(level)")
+            }
+        } else {
+            userDefaults?.removeObject(forKey: "initialReservoirLevel")
+            print("🎯 OmniBLESettingsViewModel: Removed from UserDefaults")
+        }
+        
+        // 🚀 CRITICAL: Save to special key that main app will sync to PumpSettings
+        if let level = level {
+            if let data = try? JSONEncoder().encode(level) {
+                userDefaults?.set(data, forKey: "pumpSettings_initialReservoirLevel")
+                print("🎯 OmniBLESettingsViewModel: Saved to pumpSettings_initialReservoirLevel: \(level)")
+            }
+        } else {
+            userDefaults?.removeObject(forKey: "pumpSettings_initialReservoirLevel")
+            print("🎯 OmniBLESettingsViewModel: Removed from pumpSettings_initialReservoirLevel")
+        }
+        
+        DispatchQueue.main.async {
+            completion(nil)
         }
     }
 

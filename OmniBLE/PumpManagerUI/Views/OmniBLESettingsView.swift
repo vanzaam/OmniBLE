@@ -348,6 +348,24 @@ struct OmniBLESettingsView: View  {
                     }
                 }
             }
+            
+            // 🚀 NEW: OmniPod Dash specific settings
+            Section(header: SectionHeader(label: LocalizedString("OmniPod Dash Settings", comment: "Section header for OmniPod Dash specific settings")), footer: Text("Укажите начальный остаток резервуара для правильного учета инсулина. Помпа возвращает только количество поданного инсулина, а не остаток.")) {
+                NavigationLink(destination: InitialReservoirLevelView(pumpManager: viewModel.pumpManager)) {
+                    HStack {
+                        Text("Начальный остаток резервуара")
+                            .foregroundColor(Color.primary)
+                        Spacer()
+                        if let initialLevel = viewModel.initialReservoirLevel {
+                            Text("\(Double(truncating: initialLevel as NSNumber), specifier: "%.1f") U")
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("Не задан")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
 
             Section(header: SectionHeader(label: LocalizedString("Activity", comment: "Section header for activity section"))) {
                 suspendResumeRow()
