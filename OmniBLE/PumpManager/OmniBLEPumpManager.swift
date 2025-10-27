@@ -566,6 +566,17 @@ extension OmniBLEPumpManager {
             state.lowReservoirReminderValue
         }
     }
+    
+    public var initialReservoirValue: Double {
+        set {
+            setState { (state) in
+                state.initialReservoirValue = newValue
+            }
+        }
+        get {
+            state.initialReservoirValue
+        }
+    }
 
     public var podAttachmentConfirmed: Bool {
         set {

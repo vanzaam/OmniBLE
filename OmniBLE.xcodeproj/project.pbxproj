@@ -109,6 +109,7 @@
 		B65766D72E92ABD900C7EC93 /* InitialReservoirLevelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B65766D62E92ABD900C7EC93 /* InitialReservoirLevelView.swift */; };
 		B66D1F912E6A89E400471149 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B66D1F902E6A89E400471149 /* Localizable.xcstrings */; };
 		B66D1F932E6A89E400471149 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B66D1F922E6A89E400471149 /* Localizable.xcstrings */; };
+		C00EDB04E74E57C994A99AE2 /* InitialReservoirSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F160580CF59EEFD5FA1103 /* InitialReservoirSetupView.swift */; };
 		C10D6D6C27A2393800F53D58 /* OmniBLETests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10D6D6B27A2393800F53D58 /* OmniBLETests.swift */; };
 		C10D6D6E27A2395700F53D58 /* OmniBLEPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10D6D6D27A2395700F53D58 /* OmniBLEPlugin.swift */; };
 		C187C191278FCEC9006E3557 /* InsulinTypeConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C187C190278FCEC9006E3557 /* InsulinTypeConfirmation.swift */; };
@@ -443,6 +444,7 @@
 		D897B06C29347EE500FDB009 /* InsulinTableEntry.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InsulinTableEntry.swift; sourceTree = "<group>"; };
 		D8C72BD92A50D7D700268D82 /* OmniBLEParser */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = OmniBLEParser; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8C72BDB2A50D7D700268D82 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		D9F160580CF59EEFD5FA1103 /* InitialReservoirSetupView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InitialReservoirSetupView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -775,6 +777,7 @@
 				D845A1422AF89F9200EA0853 /* SilencePodSelectionView.swift */,
 				C1F67E7627975B830017487F /* TimeView.swift */,
 				C1F67E8427975B830017487F /* UncertaintyRecoveredView.swift */,
+				D9F160580CF59EEFD5FA1103 /* InitialReservoirSetupView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1235,6 +1238,7 @@
 				C1F67E9F27975B830017487F /* SetupCompleteView.swift in Sources */,
 				C1F67EE227985F580017487F /* ReservoirLevel.swift in Sources */,
 				D845A1372AF89F5500EA0853 /* ActivityView.swift in Sources */,
+				C00EDB04E74E57C994A99AE2 /* InitialReservoirSetupView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
