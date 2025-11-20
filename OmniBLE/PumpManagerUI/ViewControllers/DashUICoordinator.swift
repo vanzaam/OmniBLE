@@ -139,8 +139,22 @@ class DashUICoordinator: UINavigationController, PumpManagerOnboarding, Completi
                 self?.pumpManager.initialReservoirValue = Double(value)
             }
             view.continueButtonTapped = { [weak self] in
-                self?.pumpManager.initialConfigurationCompleted = true
-                self?.stepFinished()
+                guard let self = self else { return }
+                
+                // ✅ CRITICAL: Save initial reservoir to PumpSettings for main app
+                if let appGroupID = Bundle.main.object(forInfoDictionaryKey: "AppGroupID") as? String {
+                    let userDefaults = UserDefaults(suiteName: appGroupID)
+                    let initialValue = self.pumpManager.initialReservoirValue
+                    if let data = try? JSONEncoder().encode(Decimal(initialValue)) {
+                        userDefaults?.set(data, forKey: "pumpSettings_initialReservoirLevel")
+                        print("✅ DashUICoordinator: Saved initial reservoir \(initialValue) to PumpSettings sync key")
+                    }
+                } else {
+                    print("⚠️ DashUICoordinator: AppGroupID not found in Info.plist")
+                }
+                
+                self.pumpManager.initialConfigurationCompleted = true
+                self.stepFinished()
             }
             view.cancelButtonTapped = { [weak self] in
                 self?.setupCanceled()

@@ -79,18 +79,35 @@ class InitialReservoirLevelViewModel: ObservableObject {
     @Published var syncInProgress = false
     
     private let pumpManager: OmniBLEPumpManager
-    private let userDefaults = UserDefaults(suiteName: "group.ru.zamot.freeeapsx")
     private let reservoirKey = "initialReservoirLevel"
+    
+    // ✅ Use APP_GROUP_ID from config instead of hardcode
+    private var userDefaults: UserDefaults? {
+        guard let appGroupID = Bundle.main.object(forInfoDictionaryKey: "AppGroupID") as? String else {
+            print("⚠️ InitialReservoirLevelView: AppGroupID not found in Info.plist")
+            return nil
+        }
+        return UserDefaults(suiteName: appGroupID)
+    }
     
     init(pumpManager: OmniBLEPumpManager) {
         self.pumpManager = pumpManager
     }
     
     func loadSettings() {
-        // Load from UserDefaults
-        if let data = userDefaults?.data(forKey: reservoirKey),
+        // ✅ КРИТИЧНО: Сначала проверяем синхронизационный ключ (используется при добавлении помпы)
+        if let data = userDefaults?.data(forKey: "pumpSettings_initialReservoirLevel"),
            let value = try? JSONDecoder().decode(Decimal.self, from: data) {
             initialReservoirLevel = value
+            print("🎯 InitialReservoirLevelView: Loaded from pumpSettings_initialReservoirLevel: \(value)")
+        }
+        // Fallback: Если синхронизационный ключ пустой, проверяем старый ключ
+        else if let data = userDefaults?.data(forKey: reservoirKey),
+                let value = try? JSONDecoder().decode(Decimal.self, from: data) {
+            initialReservoirLevel = value
+            print("🎯 InitialReservoirLevelView: Loaded from old key (initialReservoirLevel): \(value)")
+        } else {
+            print("🎯 InitialReservoirLevelView: No saved value found")
         }
         
         // Calculate current reservoir level if possible

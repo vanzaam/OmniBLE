@@ -254,11 +254,23 @@ class OmniBLESettingsViewModel: ObservableObject {
     
     // 🚀 LOAD: Load initial reservoir level from UserDefaults
     private func loadInitialReservoirLevel() {
-        let userDefaults = UserDefaults(suiteName: "group.ru.zamot.freeeapsx")
-        if let data = userDefaults?.data(forKey: "initialReservoirLevel"),
+        guard let appGroupID = Bundle.main.object(forInfoDictionaryKey: "AppGroupID") as? String else {
+            print("⚠️ OmniBLESettingsViewModel: AppGroupID not found in Info.plist")
+            return
+        }
+        let userDefaults = UserDefaults(suiteName: appGroupID)
+        
+        // ✅ КРИТИЧНО: Сначала проверяем синхронизационный ключ (используется при добавлении помпы)
+        if let data = userDefaults?.data(forKey: "pumpSettings_initialReservoirLevel"),
            let value = try? JSONDecoder().decode(Decimal.self, from: data) {
             initialReservoirLevel = value
-            print("🎯 OmniBLESettingsViewModel: Loaded initial reservoir level: \(value)")
+            print("🎯 OmniBLESettingsViewModel: Loaded from pumpSettings_initialReservoirLevel: \(value)")
+        }
+        // Fallback: Если синхронизационный ключ пустой, проверяем старый ключ
+        else if let data = userDefaults?.data(forKey: "initialReservoirLevel"),
+                let value = try? JSONDecoder().decode(Decimal.self, from: data) {
+            initialReservoirLevel = value
+            print("🎯 OmniBLESettingsViewModel: Loaded from old key (initialReservoirLevel): \(value)")
         } else {
             print("🎯 OmniBLESettingsViewModel: No initial reservoir level found")
         }
@@ -346,8 +358,16 @@ class OmniBLESettingsViewModel: ObservableObject {
         // Update local state
         self.initialReservoirLevel = level
         
+        guard let appGroupID = Bundle.main.object(forInfoDictionaryKey: "AppGroupID") as? String else {
+            print("⚠️ OmniBLESettingsViewModel: AppGroupID not found in Info.plist")
+            DispatchQueue.main.async {
+                completion(nil)
+            }
+            return
+        }
+        
         // Save to UserDefaults
-        let userDefaults = UserDefaults(suiteName: "group.ru.zamot.freeeapsx")
+        let userDefaults = UserDefaults(suiteName: appGroupID)
         if let level = level {
             if let data = try? JSONEncoder().encode(level) {
                 userDefaults?.set(data, forKey: "initialReservoirLevel")
