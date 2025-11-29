@@ -222,6 +222,17 @@ class OmniBLESettingsViewModel: ObservableObject {
     
     let pumpManager: OmniBLEPumpManager
     
+    // MARK: - Pod Backup/Restore
+    
+    @Published var showBackupSheet: Bool = false
+    @Published var showImportSheet: Bool = false
+    @Published var backupJSON: String = ""
+    @Published var importJSON: String = ""
+    @Published var backupError: String?
+    @Published var importError: String?
+    @Published var showBackupSuccess: Bool = false
+    @Published var showImportSuccess: Bool = false
+    
     init(pumpManager: OmniBLEPumpManager) {
         self.pumpManager = pumpManager
         
@@ -247,9 +258,44 @@ class OmniBLESettingsViewModel: ObservableObject {
         
         // 🚀 LOAD: Load initial reservoir level from UserDefaults
         loadInitialReservoirLevel()
+    }
+    
+    // MARK: - Backup/Restore Methods
+    
+    func exportBackup() {
+        backupError = nil
+        do {
+            backupJSON = try pumpManager.exportPodStateBackup()
+            showBackupSuccess = true
+        } catch {
+            backupError = error.localizedDescription
+        }
+    }
+    
+    func copyBackupToClipboard() {
+        #if canImport(UIKit)
+        UIPasteboard.general.string = backupJSON
+        #endif
+    }
+    
+    func importBackup() {
+        importError = nil
+        guard !importJSON.isEmpty else {
+            importError = "JSON не может быть пустым"
+            return
+        }
         
-        // Trigger refresh
-        pumpManager.getPodStatus() { _ in }
+        do {
+            try pumpManager.importPodStateBackup(json: importJSON)
+            showImportSuccess = true
+            importJSON = ""
+        } catch {
+            importError = error.localizedDescription
+        }
+    }
+    
+    func getPodBackupInfo() -> PodBackupInfo? {
+        return pumpManager.getPodBackupInfo()
     }
     
     // 🚀 LOAD: Load initial reservoir level from UserDefaults

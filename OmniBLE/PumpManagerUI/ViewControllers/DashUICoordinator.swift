@@ -95,13 +95,38 @@ class DashUICoordinator: UINavigationController, PumpManagerOnboarding, Completi
     private func viewControllerForScreen(_ screen: DashUIScreen) -> UIViewController {
         switch screen {
         case .firstRunScreen:
-            let view = PodSetupView(nextAction: { [weak self] in self?.stepFinished() },
-                                    allowDebugFeatures: allowDebugFeatures,
-                                    skipOnboarding: { [weak self] in    // NOTE: DEBUG FEATURES - DEBUG AND TEST ONLY
-                                        guard let self = self else { return }
-                                        self.pumpManager.completeOnboard()
-                                        self.completionDelegate?.completionNotifyingDidComplete(self)
-                                    })
+            let view = PodSetupView(
+                nextAction: { [weak self] in self?.stepFinished() },
+                allowDebugFeatures: allowDebugFeatures,
+                skipOnboarding: { [weak self] in    // NOTE: DEBUG FEATURES - DEBUG AND TEST ONLY
+                    guard let self = self else { return }
+                    self.pumpManager.completeOnboard()
+                    self.completionDelegate?.completionNotifyingDidComplete(self)
+                },
+                restoreFromBackup: { [weak self] json in
+                    guard let self = self else { return .failure(NSError(domain: "OmniBLE", code: -1, userInfo: [NSLocalizedDescriptionKey: "Coordinator недоступен"])) }
+                    do {
+                        // importPodStateBackup уже устанавливает isOnboarded = true
+                        try self.pumpManager.importPodStateBackup(json: json)
+                        
+                        // КРИТИЧНО: Уведомляем DeviceDataManager что pumpManager готов!
+                        // Без этого DeviceDataManager не знает о восстановленном pumpManager
+                        DispatchQueue.main.async {
+                            self.pumpManagerOnboardingDelegate?.pumpManagerOnboarding(didCreatePumpManager: self.pumpManager)
+                            self.pumpManagerOnboardingDelegate?.pumpManagerOnboarding(didOnboardPumpManager: self.pumpManager)
+                        }
+                        
+                        // Даем время для сохранения состояния
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            self.completionDelegate?.completionNotifyingDidComplete(self)
+                        }
+                        
+                        return .success(())
+                    } catch {
+                        return .failure(error)
+                    }
+                }
+            )
             return hostingController(rootView: view)
         case .expirationReminderSetup:
             var view = ExpirationReminderSetupView(expirationReminderDefault: Int(pumpManager.defaultExpirationReminderOffset.hours))

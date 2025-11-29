@@ -98,6 +98,80 @@ public class OmniBLEPumpManager: DeviceManager {
         self.podComms.messageLogger = self
 
     }
+    
+    // MARK: - Pod State Backup/Restore
+    
+    /// Экспортирует текущее состояние пода в JSON
+    /// ⚠️ ВАЖНО: Работает только на ТОМ ЖЕ iPhone (или при восстановлении из полного бэкапа iPhone)
+    public func exportPodStateBackup() throws -> String {
+        guard let podState = state.podState else {
+            throw OmniBLEPumpManagerError.noPodPaired
+        }
+        
+        let backup = OmniBLEPodStateBackup(from: podState)
+        return try backup.toJSON()
+    }
+    
+    /// Импортирует состояние пода из JSON
+    /// ⚠️ ВАЖНО: Работает только если Bluetooth UUID совпадает с iOS Bluetooth-стеком!
+    public func importPodStateBackup(json: String) throws {
+        let backup = try OmniBLEPodStateBackup.fromJSON(json)
+        
+        // Валидация бэкапа
+        let validationResult = backup.validateCompatibility()
+        switch validationResult {
+        case .invalid(let reason):
+            throw OmniBLEPodStateBackup.BackupError.restorationFailed(reason: reason)
+        case .validWithWarnings(let warnings):
+            log.error("Pod backup has warnings: %{public}@", warnings.joined(separator: ", "))
+        case .valid:
+            break
+        }
+        
+        // Восстановление PodState
+        guard let restoredPodState = backup.restoreToPodState() else {
+            throw OmniBLEPodStateBackup.BackupError.restorationFailed(reason: "Failed to create PodState from backup")
+        }
+        
+        // Обновление состояния через setState (чтобы триггерить сохранение)
+        setState { state in
+            state.updatePodStateFromPodComms(restoredPodState)
+            // КРИТИЧНО: Устанавливаем isOnboarded = true при восстановлении
+            state.isOnboarded = true
+        }
+        
+        // Переподключение к поду - создаем новый PodComms с восстановленным состоянием
+        let newPodComms = PodComms(podState: restoredPodState, myId: state.controllerId, podId: state.podId)
+        newPodComms.delegate = self
+        newPodComms.messageLogger = self
+        self.podComms = newPodComms
+        
+        // КРИТИЧНО: Уведомляем pumpManagerDelegate что состояние изменилось
+        // Это триггерит сохранение в UserDefaults и deviceStateBackup
+        pumpDelegate.notify { [weak self] delegate in
+            guard let self = self else { return }
+            delegate?.pumpManagerDidUpdateState(self)
+        }
+        
+        log.info("✅ Pod state restored from backup: address=0x%08X, bleIdentifier=%{public}@, isOnboarded=true", restoredPodState.address, restoredPodState.bleIdentifier)
+    }
+    
+    /// Получает информацию о текущем состоянии пода для отображения
+    public func getPodBackupInfo() -> PodBackupInfo? {
+        guard let podState = state.podState else {
+            return nil
+        }
+        
+        return PodBackupInfo(
+            address: String(format: "0x%08X", podState.address),
+            bleIdentifier: podState.bleIdentifier,
+            ltkHex: podState.ltk.hexadecimalString,
+            firmwareVersion: podState.firmwareVersion,
+            activatedAt: podState.activatedAt,
+            expiresAt: podState.expiresAt,
+            setupProgress: podState.setupProgress
+        )
+    }
 
     public required convenience init?(rawState: PumpManager.RawStateValue) {
         guard let state = OmniBLEPumpManagerState(rawValue: rawState) else

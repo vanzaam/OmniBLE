@@ -554,6 +554,14 @@ struct OmniBLESettingsView: View  {
                     FrameworkLocalText("Pod Diagnostics", comment: "Text for pod diagnostics row")
                         .foregroundColor(Color.primary)
                 }
+                
+                NavigationLink(destination: OmniBLEPodBackupView(viewModel: viewModel)) {
+                    HStack {
+                        Image(systemName: "doc.on.doc")
+                        Text("Бэкап/Восстановление пода")
+                            .foregroundColor(Color.primary)
+                    }
+                }
             }
 
             if self.viewModel.lifeState.allowsPumpManagerRemoval {
