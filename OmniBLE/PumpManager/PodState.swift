@@ -228,6 +228,10 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
         let prevDelivered = lastInsulinMeasurements?.delivered ?? 0
         let insulinDelivered = max(calcDelivered, prevDelivered)
 
+        // Save reservoir level from pod:
+        // - When < 50 units: pod reports REAL value (accurate) - save it
+        // - When >= 50 units: pod reports magic number 51.15 (inaccurate) - save it to detect threshold
+        // State logic will decide whether to use pod value or calculate based on magic number
         lastInsulinMeasurements = PodInsulinMeasurements(insulinDelivered: insulinDelivered, reservoirLevel: response.reservoirLevel, validTime: now)
 
         activeAlertSlots = response.alerts

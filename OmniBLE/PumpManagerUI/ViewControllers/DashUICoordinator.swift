@@ -18,6 +18,7 @@ enum DashUIScreen {
     case firstRunScreen
     case expirationReminderSetup
     case lowReservoirReminderSetup
+    case initialReservoirSetup
     case insulinTypeSelection
     case pairAndPrime
     case insertCannula
@@ -36,6 +37,8 @@ enum DashUIScreen {
         case .expirationReminderSetup:
             return .lowReservoirReminderSetup
         case .lowReservoirReminderSetup:
+            return .initialReservoirSetup
+        case .initialReservoirSetup:
             return .insulinTypeSelection
         case .insulinTypeSelection:
             return .pairAndPrime
@@ -133,6 +136,21 @@ class DashUICoordinator: UINavigationController, PumpManagerOnboarding, Completi
             }
             let hostedView = hostingController(rootView: view)
             hostedView.navigationItem.title = LocalizedString("Low Reservoir", comment: "Title for LowReservoirReminderSetupView")
+            hostedView.navigationItem.backButtonDisplayMode = .generic
+            return hostedView
+        case .initialReservoirSetup:
+            var view = InitialReservoirSetupView(initialReservoirValue: Int(pumpManager.initialReservoirValue))
+            view.valueChanged = { [weak self] value in
+                self?.pumpManager.initialReservoirValue = Double(value)
+            }
+            view.continueButtonTapped = { [weak self] in
+                self?.stepFinished()
+            }
+            view.cancelButtonTapped = { [weak self] in
+                self?.setupCanceled()
+            }
+            let hostedView = hostingController(rootView: view)
+            hostedView.navigationItem.title = LocalizedString("Initial Reservoir", comment: "Title for InitialReservoirSetupView")
             hostedView.navigationItem.backButtonDisplayMode = .generic
             return hostedView
         case .insulinTypeSelection:

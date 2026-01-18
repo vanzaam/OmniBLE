@@ -212,13 +212,18 @@ class OmniBLESettingsViewModel: ObservableObject {
         return nil
     }
     
-    let reservoirVolumeFormatter = QuantityFormatter(for: .internationalUnit())
+    let reservoirVolumeFormatter: QuantityFormatter = {
+        let formatter = QuantityFormatter(for: .internationalUnit())
+        formatter.numberFormatter.minimumFractionDigits = 2
+        formatter.numberFormatter.maximumFractionDigits = 2
+        return formatter
+    }()
     
     var didFinish: (() -> Void)?
     
     var navigateTo: ((DashUIScreen) -> Void)?
     
-    private let pumpManager: OmniBLEPumpManager
+    let pumpManager: OmniBLEPumpManager
     
     init(pumpManager: OmniBLEPumpManager) {
         self.pumpManager = pumpManager

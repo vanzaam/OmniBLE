@@ -173,14 +173,19 @@ public class OmniBLEPumpManager: DeviceManager {
                 observer.podStateDidUpdate(newValue.podState)
             }
 
-            if oldValue.podState?.lastInsulinMeasurements?.reservoirLevel != newValue.podState?.lastInsulinMeasurements?.reservoirLevel {
-                if let lastInsulinMeasurements = newValue.podState?.lastInsulinMeasurements,
-                   let reservoirLevel = lastInsulinMeasurements.reservoirLevel,
-                   reservoirLevel != Pod.reservoirLevelAboveThresholdMagicNumber
-                {
+            // Check if delivered insulin changed (to trigger reservoir update)
+            let oldDelivered = oldValue.podState?.lastInsulinMeasurements?.delivered
+            let newDelivered = newValue.podState?.lastInsulinMeasurements?.delivered
+            
+            if oldDelivered != newDelivered, let newDelivered = newDelivered {
+                if let lastInsulinMeasurements = newValue.podState?.lastInsulinMeasurements {
+                    // Send REAL pod value: either exact reservoir (< 50) or 0xDEAD_BEEF (>= 50)
+                    // Let DeviceDataManager do the calculation based on initialReservoirValue
+                    let podReservoirValue = lastInsulinMeasurements.reservoirLevel ?? 0xDEAD_BEEF
+                    
                     self.pumpDelegate.notify({ (delegate) in
-                        self.log.info("DU: updating reservoir level %{public}@", String(describing: reservoirLevel))
-                        delegate?.pumpManager(self, didReadReservoirValue: reservoirLevel, at: lastInsulinMeasurements.validTime) { _ in }
+                        self.log.info("DU: delivered changed to %{public}@, pod reservoir: %{public}@", String(describing: newDelivered), String(describing: podReservoirValue))
+                        delegate?.pumpManager(self, didReadReservoirValue: podReservoirValue, at: lastInsulinMeasurements.validTime) { _ in }
                     })
                 }
             }
@@ -564,6 +569,17 @@ extension OmniBLEPumpManager {
         }
         get {
             state.lowReservoirReminderValue
+        }
+    }
+
+    public var initialReservoirValue: Double {
+        set {
+            setState { (state) in
+                state.initialReservoirValue = newValue
+            }
+        }
+        get {
+            state.initialReservoirValue
         }
     }
 
@@ -1547,9 +1563,9 @@ extension OmniBLEPumpManager {
 
             guard let configuredAlerts = self.state.podState?.configuredAlerts,
                   let activeAlertSlots = self.state.podState?.activeAlertSlots,
-                  let reservoirLevel = self.state.podState?.lastInsulinMeasurements?.reservoirLevel?.rawValue else
+                  let reservoirLevel = self.state.reservoirLevel?.rawValue else
             {
-                self.log.error("Missing podState") // should never happen
+                self.log.error("Missing podState or calculated reservoir level") // should never happen
                 completion(OmniBLEPumpManagerError.noPodPaired)
                 return
             }

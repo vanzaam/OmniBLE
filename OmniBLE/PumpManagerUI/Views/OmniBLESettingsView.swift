@@ -446,6 +446,15 @@ struct OmniBLESettingsView: View  {
                         }
                     }
                 }
+                NavigationLink(destination: InitialReservoirLevelView(pumpManager: viewModel.pumpManager)) {
+                    HStack {
+                        Text("Начальный остаток резервуара")
+                            .foregroundColor(Color.primary)
+                        Spacer()
+                        Text("\(Int(viewModel.pumpManager.initialReservoirValue)) U")
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
 
             Section() {

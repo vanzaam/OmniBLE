@@ -44,6 +44,8 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
 
     public var lowReservoirReminderValue: Double
     
+    public var initialReservoirValue: Double
+    
     public var podAttachmentConfirmed: Bool
     
     public var activeAlerts: Set<PumpManagerAlert>
@@ -69,10 +71,28 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
     
     // From last status response
     public var reservoirLevel: ReservoirLevel? {
-        guard let level = podState?.lastInsulinMeasurements?.reservoirLevel else {
+        guard let measurements = podState?.lastInsulinMeasurements else {
             return nil
         }
-        return ReservoirLevel(rawValue: level)
+        
+        // Get reservoir level reported by pod
+        guard let podReservoirLevel = measurements.reservoirLevel else {
+            return nil
+        }
+        
+        // Decision logic:
+        // 1. If pod reports < 50 U → USE IT (pod sends ACCURATE value)
+        // 2. If pod reports >= 50 U (magic number 51.15) → CALCULATE from delivered
+        //    because pod cannot report values > 50U (10-bit limitation)
+        
+        if podReservoirLevel < Pod.maximumReservoirReading {
+            // Pod reports REAL value when < 50U → trust it!
+            return ReservoirLevel(rawValue: podReservoirLevel)
+        } else {
+            // Pod reports magic number (>= 50U) → calculate from delivered
+            let calculatedLevel = initialReservoirValue - measurements.delivered
+            return ReservoirLevel(rawValue: calculatedLevel)
+        }
     }
 
     // Temporal state not persisted
@@ -110,6 +130,7 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
         }
         self.insulinType = insulinType
         self.lowReservoirReminderValue = Pod.defaultLowReservoirReminder
+        self.initialReservoirValue = 200.0 // Default initial reservoir value
         self.podAttachmentConfirmed = false
         self.acknowledgedTimeOffsetAlert = false
         self.activeAlerts = []
@@ -208,6 +229,8 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
         self.defaultExpirationReminderOffset = rawValue["defaultExpirationReminderOffset"] as? TimeInterval ?? Pod.defaultExpirationReminderOffset
         
         self.lowReservoirReminderValue = rawValue["lowReservoirReminderValue"] as? Double ?? Pod.defaultLowReservoirReminder
+        
+        self.initialReservoirValue = rawValue["initialReservoirValue"] as? Double ?? 200.0 // Default initial reservoir value
 
         self.podAttachmentConfirmed = rawValue["podAttachmentConfirmed"] as? Bool ?? false
 
@@ -268,6 +291,7 @@ public struct OmniBLEPumpManagerState: RawRepresentable, Equatable {
         value["scheduledExpirationReminderOffset"] = scheduledExpirationReminderOffset
         value["defaultExpirationReminderOffset"] = defaultExpirationReminderOffset
         value["lowReservoirReminderValue"] = lowReservoirReminderValue
+        value["initialReservoirValue"] = initialReservoirValue
         value["lastPumpDataReportDate"] = lastPumpDataReportDate
         value["previousPodState"] = previousPodState?.rawValue
         return value
@@ -284,7 +308,7 @@ extension OmniBLEPumpManagerState {
     }
 
     var isPumpDataStale: Bool {
-        let pumpStatusAgeTolerance = TimeInterval(minutes: 6)
+        let pumpStatusAgeTolerance = TimeInterval(minutes: 3) // Reduced from 6 to 3 for more frequent reservoir updates
         let pumpDataAge = -(self.lastPumpDataReportDate ?? .distantPast).timeIntervalSinceNow
         return pumpDataAge > pumpStatusAgeTolerance
     }
@@ -313,6 +337,7 @@ extension OmniBLEPumpManagerState: CustomDebugStringConvertible {
             "* scheduledExpirationReminderOffset: \(String(describing: scheduledExpirationReminderOffset?.timeIntervalStr))",
             "* defaultExpirationReminderOffset: \(defaultExpirationReminderOffset.timeIntervalStr)",
             "* lowReservoirReminderValue: \(lowReservoirReminderValue)",
+            "* initialReservoirValue: \(initialReservoirValue)",
             "* podAttachmentConfirmed: \(podAttachmentConfirmed)",
             "* activeAlerts: \(activeAlerts)",
             "* alertsWithPendingAcknowledgment: \(alertsWithPendingAcknowledgment)",
