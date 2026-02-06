@@ -485,30 +485,37 @@ extension PeripheralManager {
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         self.log.debug("PeripheralManager - didConnect: %@", peripheral)
-        switch peripheral.state {
-        case .connected:
-            clearCommsQueues()
-            self.log.debug("PeripheralManager - didConnect - running assertConfiguration")
-            assertConfiguration()
+        
+        // CRITICAL FIX: Execute on PeripheralManager.queue to prevent dispatch_assert_queue crashes
+        // when completeConfiguration -> establishNewSession -> sendMessagePacket is called
+        self.queue.async { [weak self] in
+            guard let self = self else { return }
+            
+            switch peripheral.state {
+            case .connected:
+                self.clearCommsQueues()
+                self.log.debug("PeripheralManager - didConnect - running assertConfiguration")
+                self.assertConfiguration()
 
-            commandLock.lock()
-            if let index = commandConditions.firstIndex(where: { (condition) -> Bool in
-                if case .connect = condition {
-                    return true
-                } else {
-                    return false
-                }
-            }) {
-                commandConditions.remove(at: index)
+                self.commandLock.lock()
+                if let index = self.commandConditions.firstIndex(where: { (condition) -> Bool in
+                    if case .connect = condition {
+                        return true
+                    } else {
+                        return false
+                    }
+                }) {
+                    self.commandConditions.remove(at: index)
 
-                if commandConditions.isEmpty {
-                    commandLock.broadcast()
+                    if self.commandConditions.isEmpty {
+                        self.commandLock.broadcast()
+                    }
                 }
+                self.commandLock.unlock()
+
+            default:
+                break
             }
-            commandLock.unlock()
-
-        default:
-            break
         }
     }
 }
