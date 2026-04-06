@@ -2469,7 +2469,11 @@ extension OmniBLEPumpManager: PumpManager {
             semaphore.signal()
         }
 
-        semaphore.wait()
+        let waitResult = semaphore.wait(timeout: DispatchTime.now() + .seconds(60))
+        if waitResult == .timedOut {
+            log.error("Store doses operation timed out after 60 seconds")
+            return false
+        }
 
         if success {
             setState { (state) in
