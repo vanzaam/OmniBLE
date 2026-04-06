@@ -422,11 +422,38 @@ public class PodComms: CustomDebugStringConvertible {
     // Use to serialize a set of Pod Commands for a given session
     func runSession(withName name: String, _ block: @escaping (_ result: SessionRunResult) -> Void) {
 
-        guard let manager = manager, manager.peripheral.state == .connected else {
-            block(.failure(PodCommsError.podNotConnected))
+        if let manager = manager, manager.peripheral.state == .connected {
+            runSessionWithManager(manager, name: name, block: block)
             return
         }
-        
+
+        // Pod not currently connected — wait up to 3 × 5s for BLE auto-reconnect before failing
+        let maxRetries = 3
+        let retryInterval: TimeInterval = 5.0
+        log.default("runSession '%{public}@': pod not connected, waiting for BLE reconnect (max %d retries)...", name, maxRetries)
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            for attempt in 1 ... maxRetries {
+                Thread.sleep(forTimeInterval: retryInterval)
+                guard let m = self.manager else {
+                    self.log.error("runSession '%{public}@': manager gone while waiting for reconnect", name)
+                    block(.failure(PodCommsError.podNotConnected))
+                    return
+                }
+                if m.peripheral.state == .connected {
+                    self.log.default("runSession '%{public}@': pod reconnected on attempt %d/%d", name, attempt, maxRetries)
+                    self.runSessionWithManager(m, name: name, block: block)
+                    return
+                }
+                self.log.default("runSession '%{public}@': still not connected, attempt %d/%d", name, attempt, maxRetries)
+            }
+            self.log.error("runSession '%{public}@': pod not connected after %d retries, giving up", name, maxRetries)
+            block(.failure(PodCommsError.podNotConnected))
+        }
+    }
+
+    private func runSessionWithManager(_ manager: PeripheralManager, name: String, block: @escaping (_ result: SessionRunResult) -> Void) {
         manager.runSession(withName: name) { () in
 
             // Synchronize access to podState
