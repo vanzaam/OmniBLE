@@ -50,19 +50,19 @@ struct PodKeepAliveView: View {
     private var refreshTypeSection: some View {
         Section {
             VStack(alignment: .center, spacing: 4) {
-                Text("For use with iPhone 16 and InPlay BLE (Atlas) pods; otherwise leave disabled.", comment: "Hardware which benefits from Pod Keep Alive")
+                Text("Для использования с подами Atlas (InPlay BLE). Поддерживает все модели iPhone.")
                     .font(.body)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("When enabled and pod is within range, additional pod status requests are issued to minimize pod Bluetooth disconnects.", comment: "Summary of the Pod Keep Alive concept")
+                Text("При включении и нахождении пода в зоне действия, отправляются дополнительные запросы статуса для минимизации разрывов Bluetooth-соединения.")
                     .font(.body)
                     .foregroundColor(.primary)
             }
 
-            Picker("Pod Keep Alive", selection: $viewModel.podKeepAlive) {
+            Picker("Связь с подом", selection: $viewModel.podKeepAlive) {
                 ForEach(PodKeepAlive.allCases, id: \.self) { type in
                     Text(type.title).tag(type)
                 }
@@ -80,9 +80,9 @@ struct PodKeepAliveView: View {
     @ViewBuilder
     private var selectedDeviceSection: some View {
         if let storedDevice = bleManager.getSelectedDevice() {
-            Section(header: Text("Selected Device")) {
+            Section(header: Text("Выбранное устройство")) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(storedDevice.name ?? "Unknown Device")
+                    Text(storedDevice.name ?? "Неизвестное устройство")
                         .font(.headline)
 
                     deviceConnectionStatus(for: storedDevice)
@@ -106,7 +106,7 @@ struct PodKeepAliveView: View {
                         Button(action: {
                             bleManager.disconnect()
                         }) {
-                            Text("Disconnect")
+                            Text("Отключить")
                                 .foregroundColor(.blue)
                         }
                         .buttonStyle(BorderlessButtonStyle())
@@ -121,11 +121,11 @@ struct PodKeepAliveView: View {
 
     private func formattedTimeString(from seconds: TimeInterval) -> String {
         if seconds < 60 {
-            return "\(Int(seconds)) seconds"
+            return "\(Int(seconds)) сек"
         } else {
             let minutes = Int(seconds / 60)
             let seconds = Int(seconds.truncatingRemainder(dividingBy: 60))
-            return "\(minutes):\(String(format: "%02d", seconds)) minutes"
+            return "\(minutes):\(String(format: "%02d", seconds)) мин"
         }
     }
 
@@ -142,7 +142,7 @@ struct PodKeepAliveView: View {
     }
 
     private var scanningStatusHeader: some View {
-        Text("\(Storage.shared.selectedBLEDevice.value != nil ? "Additional" : "Scanning for") \(viewModel.podKeepAlive.title)...")
+        Text("\(Storage.shared.selectedBLEDevice.value != nil ? "Дополнительные" : "Поиск") \(viewModel.podKeepAlive.title)...")
             .font(.subheadline)
             .foregroundColor(.secondary)
     }
@@ -153,27 +153,27 @@ struct PodKeepAliveView: View {
         let timeSinceLastConnection = device.isConnected ? 0 : now.timeIntervalSince(device.lastConnected ?? now)
 
         if device.isConnected {
-            return Text("Connected")
+            return Text("Подключено")
                 .foregroundColor(.green)
         } else if let lastConnected = device.lastConnected {
             let timeRatio = timeSinceLastConnection / expectedConnectionTime
             let timeString = formattedTimeString(from: timeSinceLastConnection)
 
             if timeRatio < 1.0 {
-                return Text("Disconnected for \(timeString)")
+                return Text("Отключено \(timeString)")
                     .foregroundColor(.green)
             } else if timeRatio <= 1.15 {
-                return Text("Disconnected for \(timeString)")
+                return Text("Отключено \(timeString)")
                     .foregroundColor(.orange)
             } else if timeRatio <= 3.0 {
-                return Text("Disconnected for \(timeString)")
+                return Text("Отключено \(timeString)")
                     .foregroundColor(.red)
             } else {
-                return Text("Last connection: \(lastConnected)")
+                return Text("Последнее подключение: \(lastConnected)")
                     .foregroundColor(.red)
             }
         } else {
-            return Text("Reconnecting...")
+            return Text("Переподключение...")
                 .foregroundColor(.orange)
         }
     }
@@ -1354,16 +1354,15 @@ struct BLEDeviceSelectionView: View {
     var body: some View {
         VStack {
             let filteredDevices = bleManager.devices.filter { selectedFilter.matches($0) && !isSelected($0) }
-            let additionalStr = Storage.shared.selectedBLEDevice.value != nil ? "additional " : ""
             let deviceTypeStr: String = {
                 switch selectedFilter {
-                case .libreHeartBeat: return "Libre sensors"
-                case .dexcomG7HeartBeat: return "Dexcom G7/ONE+ sensors"
-                default: return "RileyLinks"
+                case .libreHeartBeat: return "датчики Libre"
+                case .dexcomG7HeartBeat: return "датчики Dexcom G7/ONE+"
+                default: return "RileyLink"
                 }
             }()
             if filteredDevices.isEmpty {
-                Text("No \(additionalStr)\(deviceTypeStr) found. They will appear here when discovered.")
+                Text("\(deviceTypeStr) не найдены. Они появятся здесь при обнаружении.")
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding()
@@ -1371,15 +1370,14 @@ struct BLEDeviceSelectionView: View {
                 ForEach(filteredDevices, id: \.id) { device in
                     HStack {
                         VStack(alignment: .leading) {
-                            Text(device.name ?? "Unknown")
+                            Text(device.name ?? "Неизвестно")
 
-                            Text("RSSI: \(device.rssi) dBm")
+                            Text("RSSI: \(device.rssi) дБм")
                                 .foregroundColor(.secondary)
                                 .font(.footnote)
 
                             if let offset = BLEManager.shared.expectedSensorFetchOffsetString(for: device) {
-                                //Text("Expected bg delay: \(offset)")
-                                Text("Expected offset: \(offset)")
+                                Text("Ожидаемое смещение: \(offset)")
                                     .foregroundColor(.secondary)
                                     .font(.footnote)
                             }
