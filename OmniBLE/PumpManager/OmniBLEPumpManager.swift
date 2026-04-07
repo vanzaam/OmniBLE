@@ -12,6 +12,22 @@ import LoopKit
 import UserNotifications
 import os.log
 import CoreBluetooth
+import UIKit
+
+var fakeInPlayPod = false
+var fakeIPhoneWithPossibleInPlayIssues = false
+
+// Returns a String of the form "iPhoneZ,Y" or "iPodX,Y"
+func getIPhoneType() -> String {
+    var systemInfo = utsname()
+    uname(&systemInfo)
+    let machineMirror = Mirror(reflecting: systemInfo.machine)
+    let identifier = machineMirror.children.reduce("") { identifier, element in
+        guard let value = element.value as? Int8, value != 0 else { return identifier }
+        return identifier + String(UnicodeScalar(UInt8(value)))
+    }
+    return identifier
+}
 
 public protocol PodStateObserver: AnyObject {
     func podStateDidUpdate(_ state: PodState?)
@@ -97,6 +113,27 @@ public class OmniBLEPumpManager: DeviceManager {
         self.podComms.delegate = self
         self.podComms.messageLogger = self
 
+        let nc = NotificationCenter.default
+        nc.addObserver(
+            self,
+            selector: #selector(appMovedToBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        nc.addObserver(
+            self,
+            selector: #selector(appMovedToForeground),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+
+        // Needed setup if pod keep alives might be used
+        podKeepAliveSetup(refresh: refresh)
+    }
+
+    func refresh() {
+        // run in a separate thread?
+        self.getPodStatus() { _ in }
     }
 
     public required convenience init?(rawState: PumpManager.RawStateValue) {
@@ -279,6 +316,15 @@ public class OmniBLEPumpManager: DeviceManager {
         }
     }
 
+    private let backgroundTask = BackgroundTask()
+    @objc func appMovedToBackground() {
+        backgroundTask.startBackgroundTask(hasPod: state.podState != nil)
+    }
+
+    @objc func appMovedToForeground() {
+        backgroundTask.stopBackgroundTask()
+    }
+
     private let pumpDelegate = WeakSynchronizedDelegate<PumpManagerDelegate>()
 
     public let log = OSLog(category: "OmniBLEPumpManager")
@@ -354,15 +400,10 @@ extension OmniBLEPumpManager {
     }
 
     private func basalDeliveryState(for state: OmniBLEPumpManagerState, at date: Date = Date()) -> PumpManagerStatus.BasalDeliveryState {
-        guard let podState = state.podState else {
-            return .active(.distantPast)
-        }
 
-        switch podCommState(for: state) {
-        case .fault:
+        // Treat a non-active (faulted or setup incomplete) pod just like no pod
+        guard let podState = state.podState, podState.isActive else {
             return .active(.distantPast)
-        default:
-            break
         }
 
         switch state.suspendEngageState {
@@ -775,6 +816,8 @@ extension OmniBLEPumpManager {
 
     public func forgetPod(completion: @escaping () -> Void) {
 
+        self.podComms.handleDiscardedPodDosing(podTime: podTime, reservoirLevel: reservoirLevel?.rawValue)
+
         self.podComms.forgetPod()
 
         self.resetPerPodPumpManagerState()
@@ -915,6 +958,14 @@ extension OmniBLEPumpManager {
                         // Have new podState, reset all the per pod pump manager state
                         self.resetPerPodPumpManagerState()
 
+                        if self.usingInPlayPod == true && self.iPhoneWithPossibleInPlayIssues {
+                            if Storage.shared.podKeepAlive.value == .disabled {
+                                // Enable the most conservative pod keep alive mode
+                                // that should work through the for pod setup process.
+                                self.log.debug("@@@ Enabling pod keep alives")
+                                Storage.shared.podKeepAlive.value = .whenOpen
+                            }
+                        }
                         // Calls completion
                         primeSession(result)
                     }
@@ -1090,7 +1141,9 @@ extension OmniBLEPumpManager {
     // MARK: - Pump Commands
 
     public func getPodStatus(completion: ((_ result: PumpManagerResult<StatusResponse>) -> Void)? = nil) {
-        guard state.hasActivePod else {
+        // Don't use guard state.hasActivePod here as it prevents getPodStatus from working
+        // after the pod has been paired, but before the pod setup process has been completed.
+        guard let podState = state.podState, podState.setupProgress.isPaired, podState.fault == nil else {
             completion?(.failure(PumpManagerError.configuration(OmniBLEPumpManagerError.noPodPaired)))
             return
         }
@@ -1861,7 +1914,7 @@ extension OmniBLEPumpManager: PumpManager {
 
         switch shouldFetchStatus {
         case .none:
-            completion?(lastSync)
+            completion?(self.lastSync)
             return // No active pod
         case true?:
             log.default("Fetching status because pumpData is too old")
@@ -2484,7 +2537,7 @@ extension OmniBLEPumpManager: PumpManager {
     }
 
     func store(doses: [UnfinalizedDose], completion: @escaping (_ error: Error?) -> Void) {
-        let lastSync = lastSync
+        let lastSync = self.lastSync
 
         pumpDelegate.notify { (delegate) in
             guard let delegate = delegate else {
@@ -2502,6 +2555,35 @@ extension OmniBLEPumpManager: PumpManager {
                 completion(error)
             }
         }
+    }
+
+    // Running on an iPhone that might have BLE connect issues with newer InPlay BLE pods (or faking it)?
+    // In initial iPhone 17 testing, it appears that these issues are limited to just all iPhone 16's.
+    var iPhoneWithPossibleInPlayIssues: Bool {
+        if fakeIPhoneWithPossibleInPlayIssues {
+            return true
+        }
+
+        // Are we running on an iPhone 16 (Apple model # "iPhone17,N", sigh)?
+        // iPhone 17's (Apple model # 'iPhone18,N" sigh) appear to work with InPlay Pods!
+        let iPhoneType = getIPhoneType()
+        if iPhoneType.contains("iPhone17") {
+            return true
+        }
+
+        return false
+    }
+
+    // Using InPlay BLE pod (or if faking it)?
+    var usingInPlayPod: Bool? {
+
+        if let deviceBLEName = self.podComms.manager?.peripheral.name {
+            if deviceBLEName == "InPlay BLE" || fakeInPlayPod {
+                return true
+            }
+            return false
+        }
+        return nil // don't know -- maybe not paired yet
     }
 }
 
@@ -2595,16 +2677,19 @@ extension OmniBLEPumpManager: AlertSoundVendor {
 // MARK: - AlertResponder implementation
 extension OmniBLEPumpManager {
     public func acknowledgeAlert(alertIdentifier: Alert.AlertIdentifier, completion: @escaping (Error?) -> Void) {
-        guard self.hasActivePod else {
-            log.default("Skipping alert acknowledgements with no active pod")
+        guard self.hasActivePod, !state.activeAlerts.isEmpty else {
+            log.default("Skipping acknowledge alert %{public}@ with no active pod or alerts", alertIdentifier)
             completion(nil)
             return
         }
 
+        var found = false
         for alert in state.activeAlerts {
             if alert.alertIdentifier == alertIdentifier || alert.repeatingAlertIdentifier == alertIdentifier {
+                found = true
                 // If this alert was triggered by the pod find the slot to clear it.
                 if let slot = alert.triggeringSlot {
+                    // Special case handling for the suspend time expired alert
                     if (self.state.podState?.isSuspended == true || self.state.podState?.lastDeliveryStatusReceived?.suspended == true) &&
                         slot == .slot6SuspendTimeExpired
                     {
@@ -2614,6 +2699,8 @@ extension OmniBLEPumpManager {
                         completion(nil)
                         return
                     }
+
+                    // Acknowledge the pod alert for the triggering slot
                     self.podComms.runSession(withName: "Acknowledge Alert") { (result) in
                         switch result {
                         case .success(let session):
@@ -2649,6 +2736,11 @@ extension OmniBLEPumpManager {
                     completion(nil)
                 }
             }
+        }
+
+        if !found {
+            log.error("acknowledge alert %{public}@ not found!", alertIdentifier)
+            completion(nil)
         }
     }
 }
