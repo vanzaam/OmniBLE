@@ -42,7 +42,7 @@ struct PodKeepAliveView: View {
             self.forceRefresh.toggle()
         }
         .insetGroupedListStyle()
-        .navigationBarTitle(Text(title), displayMode: .automatic)
+        .navigationBarTitle(Text(title), displayMode: .large)
     }
 
     // MARK: - Subviews / Computed Properties
@@ -50,7 +50,7 @@ struct PodKeepAliveView: View {
     private var refreshTypeSection: some View {
         Section {
             VStack(alignment: .center, spacing: 4) {
-                Text("Для использования с подами Atlas (InPlay BLE). Поддерживает все модели iPhone.")
+                Text("Для использования с подами Atlas (InPlay BLE).")
                     .font(.body)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
