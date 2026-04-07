@@ -529,6 +529,12 @@
             "state" : "translated",
             "value" : "Notificare de expirare"
           }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Напоминание об истечении срока"
+          }
         }
       }
     },
@@ -616,6 +622,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Execuție bolus prelungit în timpul suspendării"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продлённый болюс выполняется в режиме приостановки"
           }
         }
       }
@@ -1387,6 +1399,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ikke brukt"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не используется"
           }
         }
       }

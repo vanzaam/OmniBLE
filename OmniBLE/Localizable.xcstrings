@@ -13767,6 +13767,17 @@
         }
       }
     },
+    "Dexcom G7 HeartBeat": {
+      "comment": "Title string for PodKeepAlive.dexcomG7HeartBeat",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dexcom G7 HeartBeat"
+          }
+        }
+      }
+    },
     "Delete Omnipod DASH": {
       "comment": "Button text to confirm Omnipod DASH PumpManager deletion",
       "localizations": {
@@ -24001,7 +24012,15 @@
       }
     },
     "Libre HeartBeat": {
-      "comment": "Title string for PodKeepAlive.libreHeartBeat"
+      "comment": "Title string for PodKeepAlive.libreHeartBeat",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Libre HeartBeat"
+          }
+        }
+      }
     },
     "Listen for 2 beeps.": {
       "comment": "Label text for step 2 of pair pod instructions",
@@ -27176,6 +27195,12 @@
           "stringUnit": {
             "state": "new",
             "value": "No %1$@%2$@ found. They will appear here when discovered."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@%2$@ не найдены. Они появятся здесь при обнаружении."
           }
         }
       }
@@ -37250,8 +37275,27 @@
         }
       }
     },
+    "Pod keep alive enabled via Dexcom G7/ONE+ BLE heartbeat. Additional pod status request issued when the sensor sends a BLE notification (approximately every 5 minutes).\n\nConnects to a nearby Dexcom G7 or ONE+ sensor as a read-only BLE subscriber. No glucose data is read — only the BLE wakeup is used. The official Dexcom app continues to work normally.": {
+      "comment": "Description for PodKeepAlive.dexcomG7HeartBeat",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поддержание связи с подом включено через BLE пульс-сигнал Dexcom G7/ONE+. Дополнительный запрос статуса пода выполняется, когда сенсор отправляет BLE-уведомление (примерно каждые 5 минут).\n\nПодключается к ближайшему сенсору Dexcom G7 или ONE+ как BLE-подписчик только для чтения. Данные глюкозы не считываются — используется только BLE-пробуждение. Официальное приложение Dexcom продолжает работать в обычном режиме."
+          }
+        }
+      }
+    },
     "Pod keep alive enabled via Libre sensor BLE heartbeat. Additional pod status request issued when the Libre sensor sends a BLE notification (approximately every 60 seconds).\n\nConnects to a nearby Libre 2 or Libre 3 sensor as a read-only BLE subscriber. No glucose data is read — only the BLE wakeup is used. The official LibreLink app continues to work normally. Requires the sensor BLE device name from iOS Bluetooth settings.": {
-      "comment": "Description for PodKeepAlive.libreHeartBeat"
+      "comment": "Description for PodKeepAlive.libreHeartBeat",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поддержание связи с подом включено через BLE пульс-сигнал сенсора Libre. Дополнительный запрос статуса пода выполняется, когда сенсор Libre отправляет BLE-уведомление (примерно каждые 60 секунд).\n\nПодключается к ближайшему сенсору Libre 2 или Libre 3 как BLE-подписчик только для чтения. Данные глюкозы не считываются — используется только BLE-пробуждение. Официальное приложение LibreLink продолжает работать в обычном режиме. Требуется имя BLE-устройства сенсора из настроек Bluetooth iOS."
+          }
+        }
+      }
     },
     "Pod keep alive enabled when app is in the foreground with phone unlocked. Additional pod status request issued after 2 minutes, 40 seconds.": {
       "comment": "Description for PodKeepAlive.whenOpen",
