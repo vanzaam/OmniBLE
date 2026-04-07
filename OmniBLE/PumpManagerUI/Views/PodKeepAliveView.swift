@@ -225,7 +225,7 @@ class PodKeepAliveViewModel: ObservableObject {
             print("handlePodKeepAliveChange: initializing refresh timer for \(refreshInterval.timeIntervalStr) with refreshTimeTarget \(timeStr(refreshTimeTarget))")
             setup_refreshTimer(when: refreshInterval)
 
-        case .rileyLink:
+        case .rileyLink, .libreHeartBeat:
             /// trigger a refresh right now if there is less than a minunte until the end of remaining window
             if refreshInterval < .seconds(60), let refresh = refreshFunc {
                 print("handlePodKeepAliveChange: calling refresh with only \(refreshInterval.timeIntervalStr) left before refreshTimeTarget \(timeStr(refreshTimeTarget))")
@@ -251,6 +251,7 @@ enum PodKeepAlive: Int, CaseIterable, Codable {
     case whenOpen
     case silentTune
     case rileyLink
+    case libreHeartBeat
 
     var title: String {
         switch self {
@@ -262,6 +263,8 @@ enum PodKeepAlive: Int, CaseIterable, Codable {
             return LocalizedString("Silent Tune", comment: "Title string for PodKeepAlive.silentTune")
         case .rileyLink:
             return LocalizedString("RileyLink", comment: "Title string for PodKeepAlive.rileyLink")
+        case .libreHeartBeat:
+            return LocalizedString("Libre HeartBeat", comment: "Title string for PodKeepAlive.libreHeartBeat")
         }
     }
 
@@ -275,13 +278,15 @@ enum PodKeepAlive: Int, CaseIterable, Codable {
             return LocalizedString("Pod keep alive enabled. Additional pod status request issued after 2 minutes, 40 seconds.\n\nAttempt to keep pod connected even when phone is locked by using a silent tune playing in the background. The silent tune may be interrupted by other apps. If silent tune is interrupted, pod keep alive stops working. The silent tune consumes extra iPhone battery.", comment: "Description for PodKeepAlive.silentTune")
         case .rileyLink:
             return LocalizedString("Pod keep alive enabled. Additional pod status request issued after 2 minutes.\n\nRequires a RileyLink-compatible device within Bluetooth range. Allows pod keep alive messages when app is in background. This method uses less iPhone battery and slightly more DASH battery than the Silent Tune method. The RileyLink-compatible device must be selected and be connected.", comment: "Description for PodKeepAlive.rileyLink")
+        case .libreHeartBeat:
+            return LocalizedString("Pod keep alive enabled via Libre sensor BLE heartbeat. Additional pod status request issued when the Libre sensor sends a BLE notification (approximately every 60 seconds).\n\nConnects to a nearby Libre 2 or Libre 3 sensor as a read-only BLE subscriber. No glucose data is read — only the BLE wakeup is used. The official LibreLink app continues to work normally. Requires the sensor BLE device name from iOS Bluetooth settings.", comment: "Description for PodKeepAlive.libreHeartBeat")
         }
     }
 
     /// Indicates if the device type uses Bluetooth
     var isBluetooth: Bool {
         switch self {
-        case .rileyLink:
+        case .rileyLink, .libreHeartBeat:
             return true
         case .disabled, .whenOpen, .silentTune:
             return false
@@ -292,6 +297,8 @@ enum PodKeepAlive: Int, CaseIterable, Codable {
         switch self {
         case .rileyLink:
             return 60
+        case .libreHeartBeat:
+            return 60
         default:
             return nil
         }
@@ -299,7 +306,7 @@ enum PodKeepAlive: Int, CaseIterable, Codable {
 
     var estimatedDelayBasedOnHeartbeat: Bool {
         switch self {
-        case .rileyLink:
+        case .rileyLink, .libreHeartBeat:
             return true
         default:
             return false
@@ -314,6 +321,17 @@ enum PodKeepAlive: Int, CaseIterable, Codable {
             if let services = device.advertisedServices {
                 return services.map { $0.lowercased() }
                     .contains(rileyUUIDString.lowercased())
+            }
+            return false
+
+        case .libreHeartBeat:
+            // Match Libre sensors by name prefix: "ABBOTT" for Libre 2, or any Libre 3 name
+            if let name = device.name {
+                if name.uppercased().hasPrefix("ABBOTT") { return true }
+                // Libre 3 sensors have service FDE3 advertised
+                if let services = device.advertisedServices {
+                    if services.map({ $0.uppercased() }).contains("FDE3") { return true }
+                }
             }
             return false
 
@@ -515,6 +533,9 @@ class BLEManager: NSObject, ObservableObject {
             switch matchedType {
             case .rileyLink:
                 activeDevice = RileyLinkHeartbeatBluetoothDevice(address: device.id.uuidString, name: device.name, bluetoothDeviceDelegate: self)
+                activeDevice?.connect()
+            case .libreHeartBeat:
+                activeDevice = LibreHeartBeatBluetoothDevice(address: device.id.uuidString, name: device.name, bluetoothDeviceDelegate: self)
                 activeDevice?.connect()
 #if notdef
             case .dexcom:
@@ -1100,6 +1121,96 @@ class RileyLinkHeartbeatBluetoothDevice: BluetoothDevice {
 }
 
 
+/// Libre sensor BLE heartbeat device for pod keep-alive.
+/// Connects to a Libre 2 (service FDE3, characteristic F002) or Libre 3
+/// (characteristic 0898177A-EF89-11E9-81B4-2A2AE2DBCCE4) sensor as a read-only
+/// BLE subscriber. No glucose data is parsed — only the BLE wakeup is used.
+/// iOS allows multiple apps to subscribe to the same BLE peripheral, so this
+/// does not interfere with the official LibreLink app.
+class LibreHeartBeatBluetoothDevice: BluetoothDevice {
+    // Libre 2 BLE constants
+    private let CBUUID_Service_Libre2: String = "FDE3"
+    private let CBUUID_ReceiveCharacteristic_Libre2: String = "F002"
+
+    // Libre 3 BLE constants (no service filter needed)
+    private let CBUUID_ReceiveCharacteristic_Libre3: String = "0898177A-EF89-11E9-81B4-2A2AE2DBCCE4"
+
+    /// Minimum interval between heartbeat callbacks (seconds)
+    private let minimumHeartBeatInterval: TimeInterval = 60
+
+    /// When the last heartbeat callback was fired
+    private var timeStampOfLastHeartBeat: Date = Date(timeIntervalSince1970: 0)
+
+    init(address: String, name: String?, bluetoothDeviceDelegate: BluetoothDeviceDelegate) {
+        // Use nil for servicesCBUUIDs to discover all services (needed for Libre 3 which
+        // does not advertise a specific service UUID). Both Libre 2 (FDE3) and Libre 3
+        // services will be discovered during the connection phase.
+        super.init(
+            address: address,
+            name: name,
+            CBUUID_Advertisement: nil,
+            servicesCBUUIDs: nil,
+            CBUUID_ReceiveCharacteristic: CBUUID_ReceiveCharacteristic_Libre2,
+            bluetoothDeviceDelegate: bluetoothDeviceDelegate
+        )
+    }
+
+    override func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        super.centralManager(central, didConnect: peripheral)
+        fireHeartBeatIfNeeded()
+    }
+
+    override func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        // Subscribe to ALL characteristics on discovered services, not just the base class one.
+        // This ensures we catch both Libre 2 (F002 on FDE3) and Libre 3 (0898177A...) characteristics.
+        if let characteristics = service.characteristics {
+            for characteristic in characteristics {
+                let uuidString = characteristic.uuid.uuidString.uppercased()
+                if uuidString == CBUUID_ReceiveCharacteristic_Libre2.uppercased() ||
+                    uuidString == CBUUID_ReceiveCharacteristic_Libre3.uppercased()
+                {
+                    print("@@@ LibreHeartBeat: subscribing to characteristic \(uuidString) on service \(service.uuid)")
+                    peripheral.setNotifyValue(true, for: characteristic)
+                }
+            }
+        }
+    }
+
+    override func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        super.peripheral(peripheral, didUpdateValueFor: characteristic, error: error)
+
+        let uuidString = characteristic.uuid.uuidString.uppercased()
+        guard uuidString == CBUUID_ReceiveCharacteristic_Libre2.uppercased() ||
+            uuidString == CBUUID_ReceiveCharacteristic_Libre3.uppercased()
+        else {
+            return
+        }
+
+        print("@@@ LibreHeartBeat: notification from characteristic \(uuidString)")
+        fireHeartBeatIfNeeded()
+    }
+
+    override func expectedHeartbeatInterval() -> TimeInterval? {
+        return 60
+    }
+
+    /// Fire heartbeat callback if enough time has passed since the last one
+    private func fireHeartBeatIfNeeded() {
+        let now = Date()
+        guard now.timeIntervalSince(timeStampOfLastHeartBeat) > minimumHeartBeatInterval else {
+            return
+        }
+        timeStampOfLastHeartBeat = now
+        print("@@@ LibreHeartBeat: firing heartbeat at \(timeStr(now))")
+
+        // Small delay to let official LibreLink app process first
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.bluetoothDeviceDelegate?.heartBeat()
+        }
+    }
+}
+
+
 enum CycleHelper {
     /// Returns a positive modulus value (always between 0 and modulus).
     static func positiveModulo(_ value: TimeInterval, modulus: TimeInterval) -> TimeInterval {
@@ -1155,8 +1266,9 @@ struct BLEDeviceSelectionView: View {
         VStack {
             let filteredDevices = bleManager.devices.filter { selectedFilter.matches($0) && !isSelected($0) }
             let additionalStr = Storage.shared.selectedBLEDevice.value != nil ? "additional " : ""
+            let deviceTypeStr = selectedFilter == .libreHeartBeat ? "Libre sensors" : "RileyLinks"
             if filteredDevices.isEmpty {
-                Text("No \(additionalStr)RileyLinks found. They will appear here when discovered.")
+                Text("No \(additionalStr)\(deviceTypeStr) found. They will appear here when discovered.")
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding()
@@ -1260,6 +1372,14 @@ func podKeepAliveSetup(refresh: @escaping () -> Void) {
             bleManager.connect(device: device)
         }
 
+    case .libreHeartBeat:
+        /// Try to reconnect to previously selected Libre sensor
+        let bleManager = BLEManager()
+        if let device = Storage.shared.selectedBLEDevice.value {
+            print("@@@ podKeepAliveSetup attempting Libre HeartBeat connect to \(device.name ?? "unknown name")")
+            bleManager.connect(device: device)
+        }
+
     default:
         break /// no extra setup actions should be needed for other cases
     }
@@ -1300,7 +1420,7 @@ func gotPodResponse() {
     Storage.shared.lastUpdateTime.value = now
 
     let podKeepAlive = Storage.shared.podKeepAlive.value
-    if podKeepAlive == .disabled || podKeepAlive == .rileyLink {
+    if podKeepAlive == .disabled || podKeepAlive == .rileyLink || podKeepAlive == .libreHeartBeat {
         print("@@@ refreshTimer disabled with podKeepAlive = \(podKeepAlive.title) at \(timeStr(now))")
         refreshTimer?.invalidate()
         return
