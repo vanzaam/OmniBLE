@@ -2577,7 +2577,7 @@ extension OmniBLEPumpManager: PumpManager {
     }
 
     // Using InPlay BLE pod (or if faking it)?
-    var usingInPlayPod: Bool? {
+    public var usingInPlayPod: Bool? {
 
         if let deviceBLEName = self.podComms.manager?.peripheral.name {
             if deviceBLEName == "InPlay BLE" || fakeInPlayPod {
