@@ -225,7 +225,7 @@ class PodKeepAliveViewModel: ObservableObject {
             print("handlePodKeepAliveChange: initializing refresh timer for \(refreshInterval.timeIntervalStr) with refreshTimeTarget \(timeStr(refreshTimeTarget))")
             setup_refreshTimer(when: refreshInterval)
 
-        case .rileyLink, .libreHeartBeat:
+        case .rileyLink, .libreHeartBeat, .dexcomG7HeartBeat:
             /// trigger a refresh right now if there is less than a minunte until the end of remaining window
             if refreshInterval < .seconds(60), let refresh = refreshFunc {
                 print("handlePodKeepAliveChange: calling refresh with only \(refreshInterval.timeIntervalStr) left before refreshTimeTarget \(timeStr(refreshTimeTarget))")
@@ -252,6 +252,7 @@ enum PodKeepAlive: Int, CaseIterable, Codable {
     case silentTune
     case rileyLink
     case libreHeartBeat
+    case dexcomG7HeartBeat
 
     var title: String {
         switch self {
@@ -265,6 +266,8 @@ enum PodKeepAlive: Int, CaseIterable, Codable {
             return LocalizedString("RileyLink", comment: "Title string for PodKeepAlive.rileyLink")
         case .libreHeartBeat:
             return LocalizedString("Libre HeartBeat", comment: "Title string for PodKeepAlive.libreHeartBeat")
+        case .dexcomG7HeartBeat:
+            return LocalizedString("Dexcom G7 HeartBeat", comment: "Title string for PodKeepAlive.dexcomG7HeartBeat")
         }
     }
 
@@ -280,13 +283,15 @@ enum PodKeepAlive: Int, CaseIterable, Codable {
             return LocalizedString("Pod keep alive enabled. Additional pod status request issued after 2 minutes.\n\nRequires a RileyLink-compatible device within Bluetooth range. Allows pod keep alive messages when app is in background. This method uses less iPhone battery and slightly more DASH battery than the Silent Tune method. The RileyLink-compatible device must be selected and be connected.", comment: "Description for PodKeepAlive.rileyLink")
         case .libreHeartBeat:
             return LocalizedString("Pod keep alive enabled via Libre sensor BLE heartbeat. Additional pod status request issued when the Libre sensor sends a BLE notification (approximately every 60 seconds).\n\nConnects to a nearby Libre 2 or Libre 3 sensor as a read-only BLE subscriber. No glucose data is read — only the BLE wakeup is used. The official LibreLink app continues to work normally. Requires the sensor BLE device name from iOS Bluetooth settings.", comment: "Description for PodKeepAlive.libreHeartBeat")
+        case .dexcomG7HeartBeat:
+            return LocalizedString("Pod keep alive enabled via Dexcom G7/ONE+ BLE heartbeat. Additional pod status request issued when the sensor sends a BLE notification (approximately every 5 minutes).\n\nConnects to a nearby Dexcom G7 or ONE+ sensor as a read-only BLE subscriber. No glucose data is read — only the BLE wakeup is used. The official Dexcom app continues to work normally.", comment: "Description for PodKeepAlive.dexcomG7HeartBeat")
         }
     }
 
     /// Indicates if the device type uses Bluetooth
     var isBluetooth: Bool {
         switch self {
-        case .rileyLink, .libreHeartBeat:
+        case .rileyLink, .libreHeartBeat, .dexcomG7HeartBeat:
             return true
         case .disabled, .whenOpen, .silentTune:
             return false
@@ -299,6 +304,8 @@ enum PodKeepAlive: Int, CaseIterable, Codable {
             return 60
         case .libreHeartBeat:
             return 60
+        case .dexcomG7HeartBeat:
+            return 300
         default:
             return nil
         }
@@ -306,7 +313,7 @@ enum PodKeepAlive: Int, CaseIterable, Codable {
 
     var estimatedDelayBasedOnHeartbeat: Bool {
         switch self {
-        case .rileyLink, .libreHeartBeat:
+        case .rileyLink, .libreHeartBeat, .dexcomG7HeartBeat:
             return true
         default:
             return false
@@ -332,6 +339,18 @@ enum PodKeepAlive: Int, CaseIterable, Codable {
                 if let services = device.advertisedServices {
                     if services.map({ $0.uppercased() }).contains("FDE3") { return true }
                 }
+            }
+            return false
+
+        case .dexcomG7HeartBeat:
+            // Match Dexcom G7/ONE+ sensors by name prefix "DXCM" or "DX02",
+            // or by advertised service UUID FEBC
+            if let name = device.name {
+                let upper = name.uppercased()
+                if upper.hasPrefix("DXCM") || upper.hasPrefix("DX02") { return true }
+            }
+            if let services = device.advertisedServices {
+                if services.map({ $0.uppercased() }).contains("FEBC") { return true }
             }
             return false
 
@@ -537,14 +556,9 @@ class BLEManager: NSObject, ObservableObject {
             case .libreHeartBeat:
                 activeDevice = LibreHeartBeatBluetoothDevice(address: device.id.uuidString, name: device.name, bluetoothDeviceDelegate: self)
                 activeDevice?.connect()
-#if notdef
-            case .dexcom:
-                activeDevice = DexcomHeartbeatBluetoothDevice(address: device.id.uuidString, name: device.name, bluetoothDeviceDelegate: self)
+            case .dexcomG7HeartBeat:
+                activeDevice = DexcomG7HeartBeatBluetoothDevice(address: device.id.uuidString, name: device.name, bluetoothDeviceDelegate: self)
                 activeDevice?.connect()
-            case .omnipodDash:
-                activeDevice = OmnipodDashHeartbeatBluetoothTransmitter(address: device.id.uuidString, name: device.name, bluetoothDeviceDelegate: self)
-                activeDevice?.connect()
-#endif
             case .silentTune, .whenOpen, .disabled:
                 return
             }
@@ -1211,6 +1225,81 @@ class LibreHeartBeatBluetoothDevice: BluetoothDevice {
 }
 
 
+/// Dexcom G7/ONE+ BLE heartbeat device for pod keep-alive.
+/// Connects to a Dexcom G7 or ONE+ sensor (service F8083532-849E-531C-C594-30F1F86A4EA5,
+/// characteristic F8083535-849E-531C-C594-30F1F86A4EA5) as a read-only BLE subscriber.
+/// No glucose data is parsed — only the BLE wakeup is used.
+/// iOS allows multiple apps to subscribe to the same BLE peripheral, so this
+/// does not interfere with the official Dexcom app.
+class DexcomG7HeartBeatBluetoothDevice: BluetoothDevice {
+    // Dexcom G7 BLE constants
+    private let CBUUID_Service_G7: String = "F8083532-849E-531C-C594-30F1F86A4EA5"
+    private let CBUUID_ReceiveCharacteristic_G7: String = "F8083535-849E-531C-C594-30F1F86A4EA5"
+
+    /// Advertisement UUID used by Dexcom G7
+    private let CBUUID_Advertisement_G7: String = "FEBC"
+
+    /// Minimum interval between heartbeat callbacks (seconds)
+    private let minimumHeartBeatInterval: TimeInterval = 60
+
+    /// When the last heartbeat callback was fired
+    private var timeStampOfLastHeartBeat: Date = Date(timeIntervalSince1970: 0)
+
+    init(address: String, name: String?, bluetoothDeviceDelegate: BluetoothDeviceDelegate) {
+        super.init(
+            address: address,
+            name: name,
+            CBUUID_Advertisement: CBUUID_Advertisement_G7,
+            servicesCBUUIDs: [CBUUID(string: CBUUID_Service_G7)],
+            CBUUID_ReceiveCharacteristic: CBUUID_ReceiveCharacteristic_G7,
+            bluetoothDeviceDelegate: bluetoothDeviceDelegate
+        )
+    }
+
+    override func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        super.centralManager(central, didConnect: peripheral)
+        fireHeartBeatIfNeeded()
+    }
+
+    override func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        super.centralManager(central, didDisconnectPeripheral: peripheral, error: error)
+        // Disconnection itself is a heartbeat event (sensor disconnect typically happens
+        // about 1 minute after connect for expired or out-of-range sensors)
+        fireHeartBeatIfNeeded()
+    }
+
+    override func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        super.peripheral(peripheral, didUpdateValueFor: characteristic, error: error)
+
+        guard characteristic.uuid == CBUUID(string: CBUUID_ReceiveCharacteristic_G7) else {
+            return
+        }
+
+        print("@@@ DexcomG7HeartBeat: notification from characteristic \(characteristic.uuid.uuidString)")
+        fireHeartBeatIfNeeded()
+    }
+
+    override func expectedHeartbeatInterval() -> TimeInterval? {
+        return 300
+    }
+
+    /// Fire heartbeat callback if enough time has passed since the last one
+    private func fireHeartBeatIfNeeded() {
+        let now = Date()
+        guard now.timeIntervalSince(timeStampOfLastHeartBeat) > minimumHeartBeatInterval else {
+            return
+        }
+        timeStampOfLastHeartBeat = now
+        print("@@@ DexcomG7HeartBeat: firing heartbeat at \(timeStr(now))")
+
+        // Small delay to let official Dexcom app process first
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.bluetoothDeviceDelegate?.heartBeat()
+        }
+    }
+}
+
+
 enum CycleHelper {
     /// Returns a positive modulus value (always between 0 and modulus).
     static func positiveModulo(_ value: TimeInterval, modulus: TimeInterval) -> TimeInterval {
@@ -1266,7 +1355,13 @@ struct BLEDeviceSelectionView: View {
         VStack {
             let filteredDevices = bleManager.devices.filter { selectedFilter.matches($0) && !isSelected($0) }
             let additionalStr = Storage.shared.selectedBLEDevice.value != nil ? "additional " : ""
-            let deviceTypeStr = selectedFilter == .libreHeartBeat ? "Libre sensors" : "RileyLinks"
+            let deviceTypeStr: String = {
+                switch selectedFilter {
+                case .libreHeartBeat: return "Libre sensors"
+                case .dexcomG7HeartBeat: return "Dexcom G7/ONE+ sensors"
+                default: return "RileyLinks"
+                }
+            }()
             if filteredDevices.isEmpty {
                 Text("No \(additionalStr)\(deviceTypeStr) found. They will appear here when discovered.")
                     .foregroundColor(.secondary)
@@ -1380,6 +1475,14 @@ func podKeepAliveSetup(refresh: @escaping () -> Void) {
             bleManager.connect(device: device)
         }
 
+    case .dexcomG7HeartBeat:
+        /// Try to reconnect to previously selected Dexcom G7/ONE+ sensor
+        let bleManager = BLEManager()
+        if let device = Storage.shared.selectedBLEDevice.value {
+            print("@@@ podKeepAliveSetup attempting Dexcom G7 HeartBeat connect to \(device.name ?? "unknown name")")
+            bleManager.connect(device: device)
+        }
+
     default:
         break /// no extra setup actions should be needed for other cases
     }
@@ -1420,7 +1523,7 @@ func gotPodResponse() {
     Storage.shared.lastUpdateTime.value = now
 
     let podKeepAlive = Storage.shared.podKeepAlive.value
-    if podKeepAlive == .disabled || podKeepAlive == .rileyLink || podKeepAlive == .libreHeartBeat {
+    if podKeepAlive == .disabled || podKeepAlive == .rileyLink || podKeepAlive == .libreHeartBeat || podKeepAlive == .dexcomG7HeartBeat {
         print("@@@ refreshTimer disabled with podKeepAlive = \(podKeepAlive.title) at \(timeStr(now))")
         refreshTimer?.invalidate()
         return
