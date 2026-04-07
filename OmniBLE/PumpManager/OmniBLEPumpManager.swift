@@ -2558,20 +2558,22 @@ extension OmniBLEPumpManager: PumpManager {
     }
 
     // Running on an iPhone that might have BLE connect issues with newer InPlay BLE pods (or faking it)?
-    // In initial iPhone 17 testing, it appears that these issues are limited to just all iPhone 16's.
+    // InPlay BLE (Atlas) pods have 3-minute disconnect issues on all iPhones except iPhone 17+.
+    // iPhone 15 Pro Max, iPhone 16 and all earlier models are affected.
     var iPhoneWithPossibleInPlayIssues: Bool {
         if fakeIPhoneWithPossibleInPlayIssues {
             return true
         }
 
-        // Are we running on an iPhone 16 (Apple model # "iPhone17,N", sigh)?
-        // iPhone 17's (Apple model # 'iPhone18,N" sigh) appear to work with InPlay Pods!
+        // iPhone 17's (Apple model # "iPhone18,N") appear to work with InPlay Pods.
+        // ALL earlier iPhones (iPhone 16 = "iPhone17,N", iPhone 15 = "iPhone16,N", etc.) are affected.
         let iPhoneType = getIPhoneType()
-        if iPhoneType.contains("iPhone17") {
-            return true
+        if iPhoneType.contains("iPhone18") {
+            return false // iPhone 17+ works fine
         }
 
-        return false
+        // All other iPhones have potential InPlay BLE issues
+        return true
     }
 
     // Using InPlay BLE pod (or if faking it)?
