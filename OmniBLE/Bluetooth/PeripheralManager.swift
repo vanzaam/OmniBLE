@@ -520,6 +520,24 @@ extension PeripheralManager {
     }
 }
 
+// MARK: - Disconnect cleanup
+extension PeripheralManager {
+    /// Called when the peripheral disconnects to immediately unblock any command
+    /// waiting on NSCondition. Without this, the command blocks for the full timeout
+    /// duration (typically 2s), causing cascading queue starvation when heartbeats
+    /// keep firing during a disconnect/reconnect cycle.
+    func handleDisconnect() {
+        commandLock.lock()
+        if !commandConditions.isEmpty {
+            log.default("handleDisconnect: unblocking %d pending command conditions", commandConditions.count)
+            commandError = PeripheralManagerError.notReady
+            commandConditions.removeAll()
+            commandLock.broadcast()
+        }
+        commandLock.unlock()
+    }
+}
+
 extension CBPeripheral {
     func getCommandCharacteristic() -> CBCharacteristic? {
         guard let service = services?.itemWithUUID(OmnipodServiceUUID.service.cbUUID) else {
