@@ -558,14 +558,20 @@ extension CBPeripheral {
 
 // MARK: - Command session management
 extension PeripheralManager {
+    /// Notifications for queue diagnostics (observed by main app like RileyLink pattern)
+    public static let sessionDidStartNotification = Notification.Name("OmniBLE.PeripheralManager.sessionDidStart")
+    public static let sessionDidEndNotification = Notification.Name("OmniBLE.PeripheralManager.sessionDidEnd")
+
     public func runSession(withName name: String , _ block: @escaping () -> Void) {
         self.log.default("Scheduling session %{public}@", name)
+        NotificationCenter.default.post(name: Self.sessionDidStartNotification, object: nil, userInfo: ["name": name])
 
         sessionQueue.addOperation({ [weak self] in
             self?.perform { (manager) in
                 manager.log.default("======================== %{public}@ ===========================", name)
                 block()
                 manager.log.default("------------------------ %{public}@ ---------------------------", name)
+                NotificationCenter.default.post(name: Self.sessionDidEndNotification, object: nil, userInfo: ["name": name])
                 self?.idleStart = Date()
                 self?.log.default("Start of idle at %{public}@", String(describing: self?.idleStart))
             }
