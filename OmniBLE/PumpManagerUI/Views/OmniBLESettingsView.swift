@@ -1,6 +1,6 @@
 //
 //  OmniBLESettingsView.swift
-//  ViewDev
+//  OmniBLE
 //
 //  Created by Pete Schwamb on 3/8/20.
 //  Copyright © 2020 Pete Schwamb. All rights reserved.
@@ -411,7 +411,7 @@ struct OmniBLESettingsView: View  {
 
             Section() {
                 HStack {
-                    FrameworkLocalText("Pod Activated", comment: "Label for pod insertion row")
+                    FrameworkLocalText("Pod Activated", comment: "Label for pod activated row")
                     Spacer()
                     Text(self.viewModel.activatedAtString)
                         .foregroundColor(Color.secondary)
@@ -428,28 +428,30 @@ struct OmniBLESettingsView: View  {
                         .foregroundColor(Color.secondary)
                 }
 
+                let localizedPodDetailsStr = LocalizedString("Pod Details", comment: "title for pod details row and page")
                 if let podDetails = self.viewModel.podDetails {
-                    NavigationLink(destination: PodDetailsView(podDetails: podDetails, title: LocalizedString("Pod Details", comment: "title for pod details page"))) {
-                        FrameworkLocalText("Pod Details", comment: "Text for pod details disclosure row")
+                    NavigationLink(destination: PodDetailsView(podDetails: podDetails, title: localizedPodDetailsStr)) {
+                        Text(localizedPodDetailsStr)
                             .foregroundColor(Color.primary)
                     }
                 } else {
                     HStack {
-                        FrameworkLocalText("Pod Details", comment: "Text for pod details disclosure row")
+                        Text(localizedPodDetailsStr)
                         Spacer()
                         Text("—")
                             .foregroundColor(Color.secondary)
                     }
                 }
 
+                let localizedPreviousPodDetailsStr = LocalizedString("Previous Pod Details", comment: "title for previous pod details row and page")
                 if let previousPodDetails = viewModel.previousPodDetails {
-                    NavigationLink(destination: PodDetailsView(podDetails: previousPodDetails, title: LocalizedString("Previous Pod", comment: "title for previous pod page"))) {
-                        FrameworkLocalText("Previous Pod Details", comment: "Text for previous pod details row")
+                    NavigationLink(destination: PodDetailsView(podDetails: previousPodDetails, title: localizedPreviousPodDetailsStr)) {
+                        Text(localizedPreviousPodDetailsStr)
                             .foregroundColor(Color.primary)
                     }
                 } else {
                     HStack {
-                        FrameworkLocalText("Previous Pod Details", comment: "Text for previous pod details row")
+                        Text(localizedPreviousPodDetailsStr)
                         Spacer()
                         Text("—")
                             .foregroundColor(Color.secondary)
@@ -511,7 +513,17 @@ struct OmniBLESettingsView: View  {
                         }
                     }
                 }
-                .disabled(false)
+
+                // iAPS: быстрый доступ к initial reservoir level из настроек
+                NavigationLink(destination: InitialReservoirLevelView(pumpManager: viewModel.pumpManager)) {
+                    HStack {
+                        Text("Начальный остаток резервуара")
+                            .foregroundColor(Color.primary)
+                        Spacer()
+                        Text("\(Int(viewModel.pumpManager.initialReservoirValue)) U")
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
 
             Section() {
@@ -545,21 +557,38 @@ struct OmniBLESettingsView: View  {
             }
 
             Section() {
+                let localizedPodDiagnosticsStr = LocalizedString("Pod Diagnostics", comment: "Title for the pod diagnostic row and page")
                 NavigationLink(destination: PodDiagnosticsView(
-                    title: LocalizedString("Pod Diagnostics", comment: "Title for the pod diagnostic view"),
+                    title: localizedPodDiagnosticsStr,
                     diagnosticCommands: viewModel.diagnosticCommands,
                     podOk: viewModel.podOk,
                     noPod: viewModel.noPod))
                 {
-                    FrameworkLocalText("Pod Diagnostics", comment: "Text for pod diagnostics row")
+                    Text(localizedPodDiagnosticsStr)
                         .foregroundColor(Color.primary)
                 }
-                
+
+                // openaps: Pod Backup/Restore
                 NavigationLink(destination: OmniBLEPodBackupView(viewModel: viewModel)) {
                     HStack {
                         Image(systemName: "doc.on.doc")
                         Text("Бэкап/Восстановление пода")
                             .foregroundColor(Color.primary)
+                    }
+                }
+
+                // iAPS: Pod Keep Alive
+                let localizedPodKeepAliveStr = LocalizedString("Pod Keep Alive", comment: "Title for the pod keep alive row and page")
+                NavigationLink(destination: PodKeepAliveView(title: localizedPodKeepAliveStr,
+                                                             initialValue: viewModel.podKeepAlivePreference,
+                                                             onChange: viewModel.setPodKeepAlive))
+                {
+                    HStack {
+                        Text(localizedPodKeepAliveStr)
+                            .foregroundColor(Color.primary)
+                        Spacer()
+                        Text(viewModel.podKeepAlivePreference.title)
+                            .foregroundColor(Color.secondary)
                     }
                 }
             }

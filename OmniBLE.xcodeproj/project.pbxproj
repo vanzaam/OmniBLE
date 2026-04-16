@@ -95,6 +95,7 @@
 		8475315B26EDA193009FD801 /* NibLoadable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8475314E26EDA193009FD801 /* NibLoadable.swift */; };
 		8475315C26EDA193009FD801 /* TimeZone.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8475314F26EDA193009FD801 /* TimeZone.swift */; };
 		8475315D26EDA193009FD801 /* Data.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8475315026EDA193009FD801 /* Data.swift */; };
+		8D720DBDEF52F88922349E26 /* InitialReservoirSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C436598793155AC0F2BE94 /* InitialReservoirSetupView.swift */; };
 		A91B2DEC276E1E5E001B0E95 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = A91B2DEB276E1E5E001B0E95 /* README.md */; };
 		A9A5BCEF276C1E2D00B02C86 /* TestUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9D054D427651D2400FAFEFB /* TestUtilities.swift */; };
 		A9A5BCF0276C1E2D00B02C86 /* HexConversionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9D054CA2764FC8200FAFEFB /* HexConversionTests.swift */; };
@@ -181,6 +182,8 @@
 		D845A1432AF89F9200EA0853 /* SilencePodSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D845A1422AF89F9200EA0853 /* SilencePodSelectionView.swift */; };
 		D85AEABC2B12D76F00081044 /* PodDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D85AEABB2B12D76F00081044 /* PodDiagnosticsView.swift */; };
 		D85AEAC42B13083F00081044 /* ReadPodInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D85AEAC32B13083F00081044 /* ReadPodInfoView.swift */; };
+		D87B145D2E73D71300B1F834 /* blank.wav in Resources */ = {isa = PBXBuildFile; fileRef = D87B145C2E73D71300B1F834 /* blank.wav */; };
+		D87B145F2E73D72D00B1F834 /* PodKeepAliveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D87B145E2E73D72D00B1F834 /* PodKeepAliveView.swift */; };
 		D8896C6227890E6B00E09A96 /* DetailedStatus+OmniBLE.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8896C6127890E6B00E09A96 /* DetailedStatus+OmniBLE.swift */; };
 		D895BF5B275DE64000D51FC7 /* StringLengthPrefixEncoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = D895BF5A275DE64000D51FC7 /* StringLengthPrefixEncoding.swift */; };
 		D897B06B29347ED500FDB009 /* BolusDeliveryTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = D897B06A29347ED500FDB009 /* BolusDeliveryTable.swift */; };
@@ -225,6 +228,7 @@
 		D8C72C042A50D95200268D82 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10389A1D26FF7841002115E9 /* Message.swift */; };
 		D8C72C052A50D96800268D82 /* Pod.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1016325327185EE4007A3BC2 /* Pod.swift */; };
 		D8C72C062A50D97500268D82 /* PodProgressStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1016325627185EE4007A3BC2 /* PodProgressStatus.swift */; };
+		EC33A8F60145C40B582D6DC6 /* InitialReservoirLevelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85C31481964DE7B3796BC098 /* InitialReservoirLevelView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -327,6 +331,7 @@
 		10389A2026FF7841002115E9 /* CRC16.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CRC16.swift; sourceTree = "<group>"; };
 		10389A2226FF7841002115E9 /* MessageTransport.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MessageTransport.swift; sourceTree = "<group>"; };
 		196A6F222AFFFD1200E3C089 /* SilencePodPreference.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SilencePodPreference.swift; sourceTree = "<group>"; };
+		58C436598793155AC0F2BE94 /* InitialReservoirSetupView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InitialReservoirSetupView.swift; sourceTree = "<group>"; };
 		84752E8226ED0FFE009FD801 /* OmniBLE.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OmniBLE.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		84752E8526ED0FFE009FD801 /* OmniBLE.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OmniBLE.h; sourceTree = "<group>"; };
 		84752E8626ED0FFE009FD801 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -356,6 +361,7 @@
 		8475314E26EDA193009FD801 /* NibLoadable.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NibLoadable.swift; sourceTree = "<group>"; };
 		8475314F26EDA193009FD801 /* TimeZone.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TimeZone.swift; sourceTree = "<group>"; };
 		8475315026EDA193009FD801 /* Data.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Data.swift; sourceTree = "<group>"; };
+		85C31481964DE7B3796BC098 /* InitialReservoirLevelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InitialReservoirLevelView.swift; sourceTree = "<group>"; };
 		A91B2DEB276E1E5E001B0E95 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		A9D054CA2764FC8200FAFEFB /* HexConversionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HexConversionTests.swift; sourceTree = "<group>"; };
 		A9D054CC2764FDB700FAFEFB /* MessagePacketTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagePacketTests.swift; sourceTree = "<group>"; };
@@ -442,6 +448,8 @@
 		D845A1422AF89F9200EA0853 /* SilencePodSelectionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SilencePodSelectionView.swift; sourceTree = "<group>"; };
 		D85AEABB2B12D76F00081044 /* PodDiagnosticsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PodDiagnosticsView.swift; sourceTree = "<group>"; };
 		D85AEAC32B13083F00081044 /* ReadPodInfoView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ReadPodInfoView.swift; sourceTree = "<group>"; };
+		D87B145C2E73D71300B1F834 /* blank.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = blank.wav; sourceTree = "<group>"; };
+		D87B145E2E73D72D00B1F834 /* PodKeepAliveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodKeepAliveView.swift; sourceTree = "<group>"; };
 		D8896C6127890E6B00E09A96 /* DetailedStatus+OmniBLE.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "DetailedStatus+OmniBLE.swift"; sourceTree = "<group>"; };
 		D895BF5A275DE64000D51FC7 /* StringLengthPrefixEncoding.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StringLengthPrefixEncoding.swift; sourceTree = "<group>"; };
 		D897B06A29347ED500FDB009 /* BolusDeliveryTable.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BolusDeliveryTable.swift; sourceTree = "<group>"; };
@@ -604,6 +612,7 @@
 				84752EAD26ED11A4009FD801 /* PumpManager */,
 				8475311D26ED8246009FD801 /* PumpManagerUI */,
 				84752E8526ED0FFE009FD801 /* OmniBLE.h */,
+				D87B145C2E73D71300B1F834 /* blank.wav */,
 				84752E8626ED0FFE009FD801 /* Info.plist */,
 				B66D1F902E6A89E400471149 /* Localizable.xcstrings */,
 			);
@@ -775,6 +784,7 @@
 				D845A13A2AF89F7100EA0853 /* PlayTestBeepsView.swift */,
 				C1F67E8A27975B830017487F /* PodDetailsView.swift */,
 				D85AEABB2B12D76F00081044 /* PodDiagnosticsView.swift */,
+				D87B145E2E73D72D00B1F834 /* PodKeepAliveView.swift */,
 				C1F67E8827975B830017487F /* PodSetupView.swift */,
 				D845A13E2AF89F8400EA0853 /* PumpManagerDetailsView.swift */,
 				D85AEAC32B13083F00081044 /* ReadPodInfoView.swift */,
@@ -785,6 +795,7 @@
 				C1F67E7627975B830017487F /* TimeView.swift */,
 				C1F67E8427975B830017487F /* UncertaintyRecoveredView.swift */,
 				D9F160580CF59EEFD5FA1103 /* InitialReservoirSetupView.swift */,
+				85C31481964DE7B3796BC098 /* InitialReservoirLevelView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1047,6 +1058,9 @@
 				cs,
 				hi,
 				sk,
+				ce,
+				hu,
+				uk,
 			);
 			mainGroup = 84752E7826ED0FFE009FD801;
 			packageReferences = (
@@ -1075,6 +1089,7 @@
 				1029AE4F27094E1900B7F5B6 /* OmniBLEUI.xcassets in Resources */,
 				A91B2DEC276E1E5E001B0E95 /* README.md in Resources */,
 				C1C001C427A2351D00533D35 /* OmniBLEReservoirView.xib in Resources */,
+				D87B145D2E73D71300B1F834 /* blank.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1172,6 +1187,7 @@
 				8475315826EDA193009FD801 /* OSLog.swift in Sources */,
 				84752ED726ED13F5009FD801 /* X25519KeyGenerator.swift in Sources */,
 				C1F67EC527975F360017487F /* InsertCannulaViewModel.swift in Sources */,
+				D87B145F2E73D72D00B1F834 /* PodKeepAliveView.swift in Sources */,
 				C1F67E9027975B830017487F /* ExpirationReminderSetupView.swift in Sources */,
 				B6E8228D2EDB3A7000CF2FF2 /* PodBackupInfo.swift in Sources */,
 				B6E8228E2EDB3A7000CF2FF2 /* OmniBLEPodStateBackup.swift in Sources */,
@@ -1249,6 +1265,7 @@
 				C1F67EE227985F580017487F /* ReservoirLevel.swift in Sources */,
 				D845A1372AF89F5500EA0853 /* ActivityView.swift in Sources */,
 				C00EDB04E74E57C994A99AE2 /* InitialReservoirSetupView.swift in Sources */,
+				EC33A8F60145C40B582D6DC6 /* InitialReservoirLevelView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

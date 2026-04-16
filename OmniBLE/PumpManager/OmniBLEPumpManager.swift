@@ -12,6 +12,22 @@ import LoopKit
 import UserNotifications
 import os.log
 import CoreBluetooth
+import UIKit
+
+var fakeInPlayPod = false
+var fakeIPhoneWithPossibleInPlayIssues = false
+
+// Returns a String of the form "iPhoneZ,Y" or "iPodX,Y"
+func getIPhoneType() -> String {
+    var systemInfo = utsname()
+    uname(&systemInfo)
+    let machineMirror = Mirror(reflecting: systemInfo.machine)
+    let identifier = machineMirror.children.reduce("") { identifier, element in
+        guard let value = element.value as? Int8, value != 0 else { return identifier }
+        return identifier + String(UnicodeScalar(UInt8(value)))
+    }
+    return identifier
+}
 
 public protocol PodStateObserver: AnyObject {
     func podStateDidUpdate(_ state: PodState?)
@@ -97,6 +113,27 @@ public class OmniBLEPumpManager: DeviceManager {
         self.podComms.delegate = self
         self.podComms.messageLogger = self
 
+        let nc = NotificationCenter.default
+        nc.addObserver(
+            self,
+            selector: #selector(appMovedToBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        nc.addObserver(
+            self,
+            selector: #selector(appMovedToForeground),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+
+        // Needed setup if pod keep alives might be used
+        podKeepAliveSetup(refresh: refresh)
+    }
+
+    func refresh() {
+        // run in a separate thread?
+        self.getPodStatus() { _ in }
     }
     
     // MARK: - Pod State Backup/Restore
@@ -247,14 +284,19 @@ public class OmniBLEPumpManager: DeviceManager {
                 observer.podStateDidUpdate(newValue.podState)
             }
 
-            if oldValue.podState?.lastInsulinMeasurements?.reservoirLevel != newValue.podState?.lastInsulinMeasurements?.reservoirLevel {
-                if let lastInsulinMeasurements = newValue.podState?.lastInsulinMeasurements,
-                   let reservoirLevel = lastInsulinMeasurements.reservoirLevel,
-                   reservoirLevel != Pod.reservoirLevelAboveThresholdMagicNumber
-                {
+            // Check if delivered insulin changed (to trigger reservoir update)
+            let oldDelivered = oldValue.podState?.lastInsulinMeasurements?.delivered
+            let newDelivered = newValue.podState?.lastInsulinMeasurements?.delivered
+            
+            if oldDelivered != newDelivered, let newDelivered = newDelivered {
+                if let lastInsulinMeasurements = newValue.podState?.lastInsulinMeasurements {
+                    // Send REAL pod value: either exact reservoir (< 50) or 0xDEAD_BEEF (>= 50)
+                    // Let DeviceDataManager do the calculation based on initialReservoirValue
+                    let podReservoirValue = lastInsulinMeasurements.reservoirLevel ?? 0xDEAD_BEEF
+                    
                     self.pumpDelegate.notify({ (delegate) in
-                        self.log.info("DU: updating reservoir level %{public}@", String(describing: reservoirLevel))
-                        delegate?.pumpManager(self, didReadReservoirValue: reservoirLevel, at: lastInsulinMeasurements.validTime) { _ in }
+                        self.log.info("DU: delivered changed to %{public}@, pod reservoir: %{public}@", String(describing: newDelivered), String(describing: podReservoirValue))
+                        delegate?.pumpManager(self, didReadReservoirValue: podReservoirValue, at: lastInsulinMeasurements.validTime) { _ in }
                     })
                 }
             }
@@ -348,6 +390,15 @@ public class OmniBLEPumpManager: DeviceManager {
         }
     }
 
+    private let backgroundTask = BackgroundTask()
+    @objc func appMovedToBackground() {
+        backgroundTask.startBackgroundTask(hasPod: state.podState != nil)
+    }
+
+    @objc func appMovedToForeground() {
+        backgroundTask.stopBackgroundTask()
+    }
+
     private let pumpDelegate = WeakSynchronizedDelegate<PumpManagerDelegate>()
 
     public let log = OSLog(category: "OmniBLEPumpManager")
@@ -423,15 +474,10 @@ extension OmniBLEPumpManager {
     }
 
     private func basalDeliveryState(for state: OmniBLEPumpManagerState, at date: Date = Date()) -> PumpManagerStatus.BasalDeliveryState {
-        guard let podState = state.podState else {
-            return .active(.distantPast)
-        }
 
-        switch podCommState(for: state) {
-        case .fault:
+        // Treat a non-active (faulted or setup incomplete) pod just like no pod
+        guard let podState = state.podState, podState.isActive else {
             return .active(.distantPast)
-        default:
-            break
         }
 
         switch state.suspendEngageState {
@@ -652,6 +698,17 @@ extension OmniBLEPumpManager {
         }
     }
 
+    public var initialReservoirValue: Double {
+        set {
+            setState { (state) in
+                state.initialReservoirValue = newValue
+            }
+        }
+        get {
+            state.initialReservoirValue
+        }
+    }
+
     public var podAttachmentConfirmed: Bool {
         set {
             setState { (state) in
@@ -844,6 +901,8 @@ extension OmniBLEPumpManager {
 
     public func forgetPod(completion: @escaping () -> Void) {
 
+        self.podComms.handleDiscardedPodDosing(podTime: podTime, reservoirLevel: reservoirLevel?.rawValue)
+
         self.podComms.forgetPod()
 
         self.resetPerPodPumpManagerState()
@@ -984,6 +1043,14 @@ extension OmniBLEPumpManager {
                         // Have new podState, reset all the per pod pump manager state
                         self.resetPerPodPumpManagerState()
 
+                        if self.usingInPlayPod == true && self.iPhoneWithPossibleInPlayIssues {
+                            if Storage.shared.podKeepAlive.value == .disabled {
+                                // Enable the most conservative pod keep alive mode
+                                // that should work through the for pod setup process.
+                                self.log.debug("@@@ Enabling pod keep alives")
+                                Storage.shared.podKeepAlive.value = .whenOpen
+                            }
+                        }
                         // Calls completion
                         primeSession(result)
                     }
@@ -1159,7 +1226,9 @@ extension OmniBLEPumpManager {
     // MARK: - Pump Commands
 
     public func getPodStatus(completion: ((_ result: PumpManagerResult<StatusResponse>) -> Void)? = nil) {
-        guard state.hasActivePod else {
+        // Don't use guard state.hasActivePod here as it prevents getPodStatus from working
+        // after the pod has been paired, but before the pod setup process has been completed.
+        guard let podState = state.podState, podState.setupProgress.isPaired, podState.fault == nil else {
             completion?(.failure(PumpManagerError.configuration(OmniBLEPumpManagerError.noPodPaired)))
             return
         }
@@ -1632,9 +1701,9 @@ extension OmniBLEPumpManager {
 
             guard let configuredAlerts = self.state.podState?.configuredAlerts,
                   let activeAlertSlots = self.state.podState?.activeAlertSlots,
-                  let reservoirLevel = self.state.podState?.lastInsulinMeasurements?.reservoirLevel?.rawValue else
+                  let reservoirLevel = self.state.reservoirLevel?.rawValue else
             {
-                self.log.error("Missing podState") // should never happen
+                self.log.error("Missing podState or calculated reservoir level") // should never happen
                 completion(OmniBLEPumpManagerError.noPodPaired)
                 return
             }
@@ -1930,7 +1999,7 @@ extension OmniBLEPumpManager: PumpManager {
 
         switch shouldFetchStatus {
         case .none:
-            completion?(lastSync)
+            completion?(self.lastSync)
             return // No active pod
         case true?:
             log.default("Fetching status because pumpData is too old")
@@ -2553,7 +2622,7 @@ extension OmniBLEPumpManager: PumpManager {
     }
 
     func store(doses: [UnfinalizedDose], completion: @escaping (_ error: Error?) -> Void) {
-        let lastSync = lastSync
+        let lastSync = self.lastSync
 
         pumpDelegate.notify { (delegate) in
             guard let delegate = delegate else {
@@ -2571,6 +2640,37 @@ extension OmniBLEPumpManager: PumpManager {
                 completion(error)
             }
         }
+    }
+
+    // Running on an iPhone that might have BLE connect issues with newer InPlay BLE pods (or faking it)?
+    // InPlay BLE (Atlas) pods have 3-minute disconnect issues on all iPhones except iPhone 17+.
+    // iPhone 15 Pro Max, iPhone 16 and all earlier models are affected.
+    var iPhoneWithPossibleInPlayIssues: Bool {
+        if fakeIPhoneWithPossibleInPlayIssues {
+            return true
+        }
+
+        // iPhone 17's (Apple model # "iPhone18,N") appear to work with InPlay Pods.
+        // ALL earlier iPhones (iPhone 16 = "iPhone17,N", iPhone 15 = "iPhone16,N", etc.) are affected.
+        let iPhoneType = getIPhoneType()
+        if iPhoneType.contains("iPhone18") {
+            return false // iPhone 17+ works fine
+        }
+
+        // All other iPhones have potential InPlay BLE issues
+        return true
+    }
+
+    // Using InPlay BLE pod (or if faking it)?
+    public var usingInPlayPod: Bool? {
+
+        if let deviceBLEName = self.podComms.manager?.peripheral.name {
+            if deviceBLEName == "InPlay BLE" || fakeInPlayPod {
+                return true
+            }
+            return false
+        }
+        return nil // don't know -- maybe not paired yet
     }
 }
 
@@ -2664,16 +2764,19 @@ extension OmniBLEPumpManager: AlertSoundVendor {
 // MARK: - AlertResponder implementation
 extension OmniBLEPumpManager {
     public func acknowledgeAlert(alertIdentifier: Alert.AlertIdentifier, completion: @escaping (Error?) -> Void) {
-        guard self.hasActivePod else {
-            log.default("Skipping alert acknowledgements with no active pod")
+        guard self.hasActivePod, !state.activeAlerts.isEmpty else {
+            log.default("Skipping acknowledge alert %{public}@ with no active pod or alerts", alertIdentifier)
             completion(nil)
             return
         }
 
+        var found = false
         for alert in state.activeAlerts {
             if alert.alertIdentifier == alertIdentifier || alert.repeatingAlertIdentifier == alertIdentifier {
+                found = true
                 // If this alert was triggered by the pod find the slot to clear it.
                 if let slot = alert.triggeringSlot {
+                    // Special case handling for the suspend time expired alert
                     if (self.state.podState?.isSuspended == true || self.state.podState?.lastDeliveryStatusReceived?.suspended == true) &&
                         slot == .slot6SuspendTimeExpired
                     {
@@ -2683,6 +2786,8 @@ extension OmniBLEPumpManager {
                         completion(nil)
                         return
                     }
+
+                    // Acknowledge the pod alert for the triggering slot
                     self.podComms.runSession(withName: "Acknowledge Alert") { (result) in
                         switch result {
                         case .success(let session):
@@ -2718,6 +2823,11 @@ extension OmniBLEPumpManager {
                     completion(nil)
                 }
             }
+        }
+
+        if !found {
+            log.error("acknowledge alert %{public}@ not found!", alertIdentifier)
+            completion(nil)
         }
     }
 }

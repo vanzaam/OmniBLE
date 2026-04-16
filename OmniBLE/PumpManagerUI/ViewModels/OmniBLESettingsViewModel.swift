@@ -42,6 +42,8 @@ class OmniBLESettingsViewModel: ObservableObject {
 
     @Published var silencePodPreference: SilencePodPreference
 
+    @Published var podKeepAlivePreference: PodKeepAlive
+
     @Published var podConnected: Bool
     
     @Published var initialReservoirLevel: Decimal? = nil // 🚀 NEW: Начальный остаток резервуара для OmniPod Dash
@@ -214,16 +216,21 @@ class OmniBLESettingsViewModel: ObservableObject {
         return nil
     }
     
-    let reservoirVolumeFormatter = QuantityFormatter(for: .internationalUnit())
+    let reservoirVolumeFormatter: QuantityFormatter = {
+        let formatter = QuantityFormatter(for: .internationalUnit())
+        formatter.numberFormatter.minimumFractionDigits = 2
+        formatter.numberFormatter.maximumFractionDigits = 2
+        return formatter
+    }()
     
     var didFinish: (() -> Void)?
     
     var navigateTo: ((DashUIScreen) -> Void)?
     
     let pumpManager: OmniBLEPumpManager
-    
-    // MARK: - Pod Backup/Restore
-    
+
+    // MARK: - Pod Backup/Restore (openaps)
+
     @Published var showBackupSheet: Bool = false
     @Published var showImportSheet: Bool = false
     @Published var backupJSON: String = ""
@@ -249,6 +256,7 @@ class OmniBLESettingsViewModel: ObservableObject {
         podCommState = self.pumpManager.podCommState
         beepPreference = self.pumpManager.beepPreference
         silencePodPreference = self.pumpManager.silencePod ? .enabled : .disabled
+        podKeepAlivePreference = Storage.shared.podKeepAlive.value
         podConnected = self.pumpManager.isConnected
         insulinType = self.pumpManager.insulinType
         podDetails = self.pumpManager.podDetails
@@ -464,6 +472,10 @@ class OmniBLESettingsViewModel: ObservableObject {
                 completion(error)
             }
         }
+    }
+
+    func setPodKeepAlive(_ podKeepAlivePreference: PodKeepAlive) {
+        self.podKeepAlivePreference = podKeepAlivePreference
     }
 
     func didChangeInsulinType(_ newType: InsulinType?) {

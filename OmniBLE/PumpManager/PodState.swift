@@ -88,7 +88,9 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
     var finalizedDoses: [UnfinalizedDose]
 
     public var dosesToStore: [UnfinalizedDose] {
-        return  finalizedDoses + [unfinalizedTempBasal, unfinalizedSuspend, unfinalizedBolus].compactMap {$0}
+        /// Also include unfinalized bolus and temp basal doses which are mututable until finalized.
+        /// Suspends and resumes are now "finalized" upon getting a response confirming delivery state.
+        return finalizedDoses + [unfinalizedBolus, unfinalizedTempBasal].compactMap {$0}
     }
 
     public var suspendState: SuspendState
@@ -228,6 +230,10 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
         let prevDelivered = lastInsulinMeasurements?.delivered ?? 0
         let insulinDelivered = max(calcDelivered, prevDelivered)
 
+        // Save reservoir level from pod:
+        // - When < 50 units: pod reports REAL value (accurate) - save it
+        // - When >= 50 units: pod reports magic number 51.15 (inaccurate) - save it to detect threshold
+        // State logic will decide whether to use pod value or calculate based on magic number
         lastInsulinMeasurements = PodInsulinMeasurements(insulinDelivered: insulinDelivered, reservoirLevel: response.reservoirLevel, validTime: now)
 
         activeAlertSlots = response.alerts
@@ -310,10 +316,10 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
             }
         }
         if deliveryStatus.tempBasalRunning && unfinalizedTempBasal == nil { // active temp basal that we aren't tracking
-            // unfinalizedTempBasal = UnfinalizedDose(tempBasalRate: 0, startTime: Date(), duration: .minutes(30), isHighTemp: false, scheduledCertainty: .certain, insulinType: insulinType)
+            // unfinalizedTempBasal = UnfinalizedDose(tempBasalRate: 0, startTime: date, duration: .minutes(30), isHighTemp: false, scheduledCertainty: .certain, insulinType: insulinType)
         }
         if !deliveryStatus.suspended && isSuspended { // active basal that we aren't tracking
-            let resumeStartTime = Date()
+            let resumeStartTime = date
             suspendState = .resumed(resumeStartTime)
             unfinalizedResume = UnfinalizedDose(resumeStartTime: resumeStartTime, scheduledCertainty: .certain, insulinType: insulinType)
         }
@@ -335,15 +341,55 @@ public struct PodState: RawRepresentable, Equatable, CustomDebugStringConvertibl
             unfinalizedTempBasal = nil
         }
 
-        if let suspend = unfinalizedSuspend {
+        /// Resumes and suspends have no associated delivery amounts to be finalized,
+        /// but we finalize these "doses" as soon as we have deliveryStatus confirmation
+        /// so the associated resume and suspend events can be created without delay.
 
-            if let resume = unfinalizedResume, suspend.startTime < resume.startTime {
-                finalizedDoses.append(suspend)
-                finalizedDoses.append(resume)
-                unfinalizedSuspend = nil
-                unfinalizedResume = nil
-            }
+        if let resume = unfinalizedResume, !deliveryStatus.suspended {
+            finalizedDoses.append(resume)
+            unfinalizedResume = nil
         }
+
+        if let suspend = unfinalizedSuspend, deliveryStatus.suspended {
+            finalizedDoses.append(suspend)
+            unfinalizedSuspend = nil
+        }
+    }
+
+    @discardableResult
+    mutating func handleCancelDosing(deliveryType: CancelDeliveryCommand.DeliveryType, bolusNotDelivered: Double, at now: Date = Date()) -> UnfinalizedDose?
+    {
+        var canceledDose: UnfinalizedDose? = nil
+
+        if deliveryType.contains(.basal) {
+            unfinalizedSuspend = UnfinalizedDose(suspendStartTime: now, scheduledCertainty: .certain)
+            suspendState = .suspended(now)
+        }
+
+        if let tempBasal = unfinalizedTempBasal,
+            let finishTime = tempBasal.finishTime,
+            deliveryType.contains(.tempBasal),
+            finishTime > now
+        {
+            unfinalizedTempBasal?.cancel(at: now)
+            if !deliveryType.contains(.basal) {
+                suspendState = .resumed(now)
+            }
+            canceledDose = unfinalizedTempBasal
+            print("Interrupted temp basal: \(String(describing: canceledDose))")
+        }
+
+        if let bolus = unfinalizedBolus,
+            let finishTime = bolus.finishTime,
+            deliveryType.contains(.bolus),
+            finishTime > now
+        {
+            unfinalizedBolus?.cancel(at: now, withRemaining: bolusNotDelivered)
+            canceledDose = unfinalizedBolus
+            print("Interrupted bolus: \(String(describing: canceledDose))")
+        }
+
+        return canceledDose
     }
 
     // MARK: - RawRepresentable

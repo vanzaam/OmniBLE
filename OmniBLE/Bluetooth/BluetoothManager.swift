@@ -370,9 +370,10 @@ extension BluetoothManager: CBCentralManagerDelegate {
         dispatchPrecondition(condition: .onQueue(managerQueue))
         log.debug("%{public}@: error=%{public}@ %{public}@", #function, error?.localizedDescription ?? "None", peripheral)
 
-        // Proxy disconnection events to peripheral manager
+        // Proxy disconnection events to peripheral manager and unblock any pending commands
         for device in devices where device.manager.peripheral.identifier == peripheral.identifier {
             device.manager.centralManager(central, didDisconnect: peripheral, error: error)
+            device.manager.handleDisconnect()
         }
 
         connectionDelegate?.omnipodPeripheralDidDisconnect(peripheral: peripheral, error: error)
